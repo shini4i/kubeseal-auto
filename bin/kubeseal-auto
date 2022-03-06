@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+
+find_sealed_secrets_controller() {
+  echo "===> Searching for SealedSecrets controller"
+  ss_ns=$(kubectl get deploy --all-namespaces | grep sealed | awk '{ print $1 }')
+  controller_name=$(kubectl get deploy -n "${ss_ns}" | grep sealed | awk '{ print $1 }')
+  echo "===> Found the following controller: [${green}$ss_ns/$controller_name${normal}]"
+}
+
+collect_namespaces() {
+  echo "===> Collecting available namespaces"
+  ns=$(kubectl get ns | awk 'BEGIN { ORS=" " }; { if (NR>1) print $1 }')
+  ns="${ns} other"
+  echo "===> Found the following namespaces: ${green}$ns${normal}"
+}
+
+collect_parameters() {
+  echo "➜ select namespace for the new secret [${cyan}other to enter manually${normal}]:"
+  select selection in $ns; do
+    secret_ns=$selection
+
+    if [ "$selection" == "other" ]; then
+      read -rp "➜ provide namespace for the new secret: $(tput setaf 1)" secret_ns && tput sgr0
+    fi
+
+    break
+  done
+
+  set_secret_type
+
+  read -rp "➜ provide name for the new secret: $(tput setaf 1)" secret_name && tput sgr0
+}
+
+set_secret_type() {
+  echo "➜ select secret type to create:"
+  select selection in tls generic docker-registry; do
+    secret_type=$selection
+    break
+  done
+}
+
+create_tls_secret() {
+  echo "===> Generating a temporary tls secret yaml file"
+  kubectl create secret tls "${secret_name}" --key tls.key \
+                                             --cert tls.crt \
+                                             --namespace "${secret_ns}" \
+                                             --dry-run=client -o yaml > "$tmp_file"
+}
+
+create_regcred_secret() {
+  echo "===> Generating a temporary regcred secret yaml file"
+
+  local docker_server
+  local docker_username
+  local docker_password
+
+  read -rp "➜ provide docker-server: " docker_server
+  read -rp "➜ provide docker-username: " docker_username
+  read -rp "➜ provide docker-password: " docker_password
+
+  kubectl create secret docker-registry "${secret_name}" --docker-server="${docker_server}" \
+                                                         --docker-username="${docker_username}" \
+                                                         --docker-password="${docker_password}" \
+                                                         --namespace "${secret_ns}" \
+                                                         --dry-run=client -o yaml > "$tmp_file"
+}
+
+create_generic_secret() {
+  declare -a secrets
+  local line
+
+  echo "➜ provide literal entry/entries one per line: [${cyan}literal${normal}] key=value [${cyan}file${normal}] filename"
+
+  while true; do
+    read -rp "# " line
+
+    if [[ $line == *'='* ]]; then
+      secrets+=("--from-literal=$line ")
+    elif [[ $line == "" ]]; then
+      break
+    else
+      secrets+=("--from-file=$line ")
+    fi
+  done
+
+  echo "===> Generating a temporary generic secret yaml file"
+  # ${secrets[*]} was left unquoted intentionally as we want to get unquoted string
+  kubectl create secret generic "$secret_name" ${secrets[*]} --namespace "$secret_ns" \
+                                                             --dry-run=client -o yaml > "$tmp_file"
+}
+
+edit() {
+  echo "===> Working with [${cyan}$(kubectl config current-context)${normal}] cluster"
+  find_sealed_secrets_controller
+  parse_existing_secret "$1"
+  create_generic_secret
+  merge "$1"
+  exit 0
+}
+
+parse_existing_secret() {
+  secret_ns=$(yq eval .metadata.namespace "$1")
+  secret_name=$(yq eval .metadata.name "$1")
+  echo "===> Working with [${blue}$secret_name${normal}] secret from [${blue}$secret_ns${normal}] namespace"
+}
+
+merge() {
+  echo "===> Updating $1"
+  kubeseal --format=yaml --merge-into "$1" --controller-namespace="$ss_ns" \
+                         --controller-name="$controller_name" < "$tmp_file"
+  echo "===> Done"
+}
+
+append_annotations() {
+  echo "===> Appending ArgoCD related annotations"
+  yq -i '.metadata.annotations."argocd.argoproj.io/sync-options" = "SkipDryRunOnMissingResource=true"' "$secret_name".yaml
+}
+
+seal() {
+  echo "===> Sealing generated secret file"
+  if [ "$detached_mode" = true ]; then
+    kubeseal --format=yaml \
+             --cert="$local_cert" < "$tmp_file" > "$secret_name".yaml
+  else
+    kubeseal --format=yaml \
+             --controller-namespace="$ss_ns" \
+             --controller-name="$controller_name" < "$tmp_file" > "$secret_name".yaml
+  fi
+  append_annotations
+}
+
+fetch_certificate() {
+  echo "===> Working with [${cyan}$(kubectl config current-context)${normal}] cluster"
+  find_sealed_secrets_controller
+  echo "===> Downloading certificate for kubeseal..."
+  kubeseal --controller-namespace "$ss_ns" \
+           --controller-name "$controller_name" \
+           --fetch-cert > "$(kubectl config current-context)"-kubeseal-cert.crt
+  echo "===> Saved to [${cyan}$(kubectl config current-context)-kubeseal-cert.crt${normal}]"
+  exit 0
+}
+
+configure_detached_mode() {
+  detached_mode=true
+  local_cert="$1"
+  read -rp "➜ provide namespace for the new secret: $(tput setaf 1)" secret_ns && tput sgr0
+  read -rp "➜ provide name for the new secret: $(tput setaf 1)" secret_name && tput sgr0
+}
+
+set_colors() {
+  blue=$(tput setaf 4)
+  cyan=$(tput setaf 6)
+  green=$(tput setaf 2)
+  normal=$(tput sgr0)
+}
+
+main() {
+  set -e
+
+  tmp_file=$(mktemp)
+  trap 'rm -f "$tmp_file"' EXIT
+
+  set_colors
+
+  case $1 in
+  -f|--fetch)
+    fetch_certificate
+    ;;
+  -c|--cert)
+    echo "===> Working in a detached mode"
+    configure_detached_mode "$2"
+    set_secret_type
+    ;;
+  -e|--edit)
+    edit "$2"
+    ;;
+  *)
+    echo "===> Working with [${cyan}$(kubectl config current-context)${normal}] cluster"
+    find_sealed_secrets_controller
+    collect_namespaces
+    collect_parameters
+  esac
+
+  case $secret_type in
+  tls)
+    create_tls_secret
+    ;;
+  generic)
+    create_generic_secret
+    ;;
+  docker-registry)
+    create_regcred_secret
+    ;;
+  esac
+
+  seal
+
+  echo "===> Done"
+}
+
+main "$1" "$2"
