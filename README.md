@@ -20,7 +20,7 @@ kubeseal-auto
 
 To append or change key values in existing secret:
 ```bash
-kubesel-auto -e secret-name.yaml
+kubeseal-auto -e secret-name.yaml
 ```
 
 NOTE: The script is using active kubectl context. Providing a different context is not supported yes.
