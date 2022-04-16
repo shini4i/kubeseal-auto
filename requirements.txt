@@ -1,0 +1,3 @@
+kubernetes==23.3.0
+click==8.1.2
+inquirer==2.9.2
