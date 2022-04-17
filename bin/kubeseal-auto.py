@@ -5,8 +5,7 @@ import subprocess
 import click
 import questionary
 from icecream import ic
-from kubernetes import client
-from kubernetes import config
+from kubernetes import client, config
 
 config.load_kube_config()
 v1 = client.CoreV1Api()
