@@ -51,12 +51,12 @@ class Kubeseal:
     def collect_parameters(self) -> dict:
         namespace = questionary.select(
             "Select namespace for the new secret", choices=self.get_all_namespaces()
-        ).ask()
+        ).unsafe_ask()
         secret_type = questionary.select(
             "Select secret type to create",
             choices=["generic", "tls", "docker-registry"],
-        ).ask()
-        secret_name = questionary.text("Provide name for the new secret").ask()
+        ).unsafe_ask()
+        secret_name = questionary.text("Provide name for the new secret").unsafe_ask()
 
         return {"namespace": namespace, "type": secret_type, "name": secret_name}
 
@@ -67,7 +67,9 @@ class Kubeseal:
             f"[{Fore.CYAN}file{Fore.RESET}] filename"
         )
 
-        secrets = questionary.text("Secret Entries one per line", multiline=True).ask()
+        secrets = questionary.text(
+            "Secret Entries one per line", multiline=True
+        ).unsafe_ask()
         ic(secrets)
 
         click.echo("===> Generating a temporary generic secret yaml file")
@@ -103,9 +105,9 @@ class Kubeseal:
     def create_regcred_secret(self, secret_params: dict):
         click.echo("===> Generating a temporary tls secret yaml file")
 
-        docker_server = questionary.text("Provide docker-server").ask()
-        docker_username = questionary.text("Provide docker-username").ask()
-        docker_password = questionary.text("Provide docker-password").ask()
+        docker_server = questionary.text("Provide docker-server").unsafe_ask()
+        docker_username = questionary.text("Provide docker-username").unsafe_ask()
+        docker_password = questionary.text("Provide docker-password").unsafe_ask()
 
         command = (
             f"kubectl create secret docker-registry {secret_params['name']} "
@@ -162,10 +164,7 @@ class Kubeseal:
 @click.command()
 @click.option("--debug", required=False, is_flag=True, help="print debug information")
 @click.option(
-    "--fetch",
-    required=False,
-    is_flag=True,
-    help="download SealedSecrets encryption certificate",
+    "--fetch", required=False, is_flag=True, help="download kubeseal encryption cert"
 )
 @click.option("--edit", required=False, help="SealedSecrets file to edit")
 def main(debug, fetch, edit):
