@@ -1,14 +1,12 @@
 #!/usr/bin/env python
-
 import subprocess
+from tempfile import NamedTemporaryFile
 
 import click
 import questionary
 import yaml
 from icecream import ic
 from kubernetes import client, config
-
-# import tempfile
 
 
 class Kubeseal:
@@ -19,6 +17,12 @@ class Kubeseal:
 
         self.api = client.CoreV1Api()
         self.controller = self.find_sealed_secrets_controller()
+        self.temp_file = NamedTemporaryFile()
+        click.echo(self.temp_file.name)
+
+    def __del__(self):
+        click.echo("===> Removing temporary file")
+        self.temp_file.close()
 
     def find_sealed_secrets_controller(self):
         click.echo("===> Searching for SealedSecrets controller")
@@ -51,8 +55,7 @@ class Kubeseal:
 
         return {"namespace": namespace, "type": secret_type, "name": secret_name}
 
-    @staticmethod
-    def create_generic_secret(secret_params: dict):
+    def create_generic_secret(self, secret_params: dict):
         click.echo(
             "===> Provide literal entry/entries one per line: "
             "[literal] key=value "
@@ -74,7 +77,8 @@ class Kubeseal:
 
         command = (
             f"kubectl create secret generic {secret_params['name']} {secret_entries} "
-            f"--namespace {secret_params['namespace']} --dry-run=client -o yaml > tmp.yaml"
+            f"--namespace {secret_params['namespace']} --dry-run=client -o yaml "
+            f"> {self.temp_file.name}"
         )
         ic(command)
 
@@ -85,7 +89,8 @@ class Kubeseal:
         command = (
             f"kubeseal --format=yaml "
             f"--controller-namespace={self.controller['namespace']} "
-            f"--controller-name={self.controller['name']} < tmp.yaml > {secret_name}.yaml"
+            f"--controller-name={self.controller['name']} < {self.temp_file.name} "
+            f"> {secret_name}.yaml"
         )
         ic(command)
         subprocess.call(command, shell=True)
@@ -116,12 +121,7 @@ def main(debug, edit):
 
     kubeseal = Kubeseal()
 
-    if not edit:
-        secret_params = kubeseal.collect_parameters()
-        ic(secret_params)
-        kubeseal.create_generic_secret(secret_params=secret_params)
-        kubeseal.seal(secret_name=secret_params["name"])
-    else:
+    if edit:
         secret = kubeseal.parse_existing_secret(edit)
         secret_params = {
             "name": secret["metadata"]["name"],
@@ -130,6 +130,11 @@ def main(debug, edit):
         ic(secret_params)
         kubeseal.create_generic_secret(secret_params=secret_params)
         kubeseal.merge(edit)
+    else:
+        secret_params = kubeseal.collect_parameters()
+        ic(secret_params)
+        kubeseal.create_generic_secret(secret_params=secret_params)
+        kubeseal.seal(secret_name=secret_params["name"])
 
 
 if __name__ == "__main__":
