@@ -30,14 +30,15 @@ class Kubeseal:
 
         for pod in self.api.list_pod_for_all_namespaces(watch=False).items:
             if "sealed" in pod.metadata.name:
+                name = pod.metadata.labels["app.kubernetes.io/instance"]
+                namespace = pod.metadata.namespace
                 click.echo(
                     "===> Found the following controller: "
-                    f"{Fore.CYAN}{pod.metadata.namespace}/"
-                    f"{pod.metadata.labels['app.kubernetes.io/instance']}"
+                    f"{Fore.CYAN}{namespace}/{name}"
                 )
                 return {
-                    "name": pod.metadata.labels["app.kubernetes.io/instance"],
-                    "namespace": pod.metadata.namespace,
+                    "name": name,
+                    "namespace": namespace,
                 }
 
     def get_all_namespaces(self) -> list:
@@ -138,7 +139,7 @@ class Kubeseal:
         command = (
             f"kubeseal --format=yaml --merge-into {secret_name} "
             f"--controller-namespace={self.controller['namespace']} "
-            f"--controller-name={self.controller['name']} < tmp.yaml"
+            f"--controller-name={self.controller['name']} < {self.temp_file.name}"
         )
         ic(command)
         subprocess.call(command, shell=True)
