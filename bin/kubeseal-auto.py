@@ -4,8 +4,12 @@ import subprocess
 
 import click
 import questionary
+import yaml
 from icecream import ic
 from kubernetes import client, config
+
+# import tempfile
+
 
 config.load_kube_config()
 v1 = client.CoreV1Api()
@@ -14,6 +18,7 @@ controller = {}
 
 def find_sealed_secrets_controller():
     global controller
+    click.echo("===> Searching for SealedSecrets controller")
 
     for pod in v1.list_pod_for_all_namespaces(watch=False).items:
         if "sealed" in pod.metadata.name:
@@ -86,17 +91,49 @@ def seal(secret_name: str):
     subprocess.call(command, shell=True)
 
 
+def parse_existing_secret(secret_name: str):
+    with open(secret_name, "r") as stream:
+        return yaml.safe_load(stream)
+
+
+def merge(secret_name: str):
+    click.echo(f"===> Updating {secret_name}")
+    command = (
+        f"kubeseal --format=yaml --merge-into {secret_name} "
+        f"--controller-namespace={controller['namespace']} "
+        f"--controller-name={controller['name']} < tmp.yaml"
+    )
+    ic(command)
+    subprocess.call(command, shell=True)
+    click.echo("===> Done")
+
+
 @click.command()
 @click.option("--debug", required=False, is_flag=True, help="print debug information")
-def main(debug):
+@click.option("--edit", required=False, help="sealed secrets file to edit")
+def main(debug, edit):
     if not debug:
         ic.disable()
 
+    context = config.list_kube_config_contexts()[1]["name"]
+    click.echo(f"===> Working with [{context}] cluster")
+
     find_sealed_secrets_controller()
-    secret_params = collect_parameters()
-    ic(secret_params)
-    create_generic_secret(secret_params=secret_params)
-    seal(secret_name=secret_params["name"])
+
+    if not edit:
+        secret_params = collect_parameters()
+        ic(secret_params)
+        create_generic_secret(secret_params=secret_params)
+        seal(secret_name=secret_params["name"])
+    else:
+        secret = parse_existing_secret(edit)
+        secret_params = {
+            "name": secret["metadata"]["name"],
+            "namespace": secret["metadata"]["namespace"],
+        }
+        ic(secret_params)
+        create_generic_secret(secret_params=secret_params)
+        merge(edit)
 
 
 if __name__ == "__main__":
