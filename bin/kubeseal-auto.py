@@ -34,7 +34,7 @@ class Kubeseal:
         self.temp_file.close()
 
     @staticmethod
-    def find_sealed_secrets_controller():
+    def find_sealed_secrets_controller() -> dict:
         click.echo("===> Searching for SealedSecrets controller")
 
         for deployment in client.AppsV1Api().list_deployment_for_all_namespaces().items:
