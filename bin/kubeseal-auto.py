@@ -14,13 +14,20 @@ from kubernetes import client, config
 
 
 class Kubeseal:
-    def __init__(self):
-        config.load_kube_config()
-        self.context = config.list_kube_config_contexts()[1]["name"]
-        click.echo(f"===> Working with [{Fore.CYAN}{self.context}{Fore.RESET}] cluster")
-
-        self.api = client.CoreV1Api()
-        self.controller = self.find_sealed_secrets_controller()
+    def __init__(self, certificate=None):
+        self.detached_mode = False
+        if certificate is not None:
+            click.echo("Working in a detached mode")
+            self.detached_mode = True
+            self.certificate = certificate
+        else:
+            config.load_kube_config()
+            self.context = config.list_kube_config_contexts()[1]["name"]
+            click.echo(
+                f"===> Working with [{Fore.CYAN}{self.context}{Fore.RESET}] cluster"
+            )
+            self.api = client.CoreV1Api()
+            self.controller = self.find_sealed_secrets_controller()
         self.temp_file = NamedTemporaryFile()
 
     def __del__(self):
@@ -49,9 +56,14 @@ class Kubeseal:
         return namespaces
 
     def collect_parameters(self) -> dict:
-        namespace = questionary.select(
-            "Select namespace for the new secret", choices=self.get_all_namespaces()
-        ).unsafe_ask()
+        if self.detached_mode:
+            namespace = questionary.text(
+                "Provide namespace for the new secret"
+            ).unsafe_ask()
+        else:
+            namespace = questionary.select(
+                "Select namespace for the new secret", choices=self.get_all_namespaces()
+            ).unsafe_ask()
         secret_type = questionary.select(
             "Select secret type to create",
             choices=["generic", "tls", "docker-registry"],
@@ -123,12 +135,19 @@ class Kubeseal:
 
     def seal(self, secret_name: str):
         click.echo("===> Sealing generated secret file")
-        command = (
-            f"kubeseal --format=yaml "
-            f"--controller-namespace={self.controller['namespace']} "
-            f"--controller-name={self.controller['name']} < {self.temp_file.name} "
-            f"> {secret_name}.yaml"
-        )
+        if self.detached_mode:
+            command = (
+                f"kubeseal --format=yaml "
+                f"--cert={self.certificate} < {self.temp_file.name} "
+                f"> {secret_name}.yaml"
+            )
+        else:
+            command = (
+                f"kubeseal --format=yaml "
+                f"--controller-namespace={self.controller['namespace']} "
+                f"--controller-name={self.controller['name']} < {self.temp_file.name} "
+                f"> {secret_name}.yaml"
+            )
         ic(command)
         subprocess.call(command, shell=True)
         click.echo("===> Done")
@@ -140,11 +159,17 @@ class Kubeseal:
 
     def merge(self, secret_name: str):
         click.echo(f"===> Updating {secret_name}")
-        command = (
-            f"kubeseal --format=yaml --merge-into {secret_name} "
-            f"--controller-namespace={self.controller['namespace']} "
-            f"--controller-name={self.controller['name']} < {self.temp_file.name}"
-        )
+        if self.detached_mode:
+            command = (
+                f"kubeseal --format=yaml --merge-into {secret_name} "
+                f"--cert={self.certificate} < {self.temp_file.name} "
+            )
+        else:
+            command = (
+                f"kubeseal --format=yaml --merge-into {secret_name} "
+                f"--controller-namespace={self.controller['namespace']} "
+                f"--controller-name={self.controller['name']} < {self.temp_file.name}"
+            )
         ic(command)
         subprocess.call(command, shell=True)
         click.echo("===> Done")
@@ -166,13 +191,18 @@ class Kubeseal:
 @click.option(
     "--fetch", required=False, is_flag=True, help="download kubeseal encryption cert"
 )
+@click.option("--cert", required=False, help="certificate to seal secret with")
 @click.option("--edit", required=False, help="SealedSecrets file to edit")
-def main(debug, fetch, edit):
+def main(debug, fetch, cert, edit):
     if not debug:
         ic.disable()
 
     colorama.init(autoreset=True)
-    kubeseal = Kubeseal()
+
+    if cert:
+        kubeseal = Kubeseal(certificate=cert)
+    else:
+        kubeseal = Kubeseal()
 
     if fetch:
         kubeseal.fetch_certificate()
