@@ -17,7 +17,7 @@ class Kubeseal:
     def __init__(self, certificate=None):
         self.detached_mode = False
         if certificate is not None:
-            click.echo("Working in a detached mode")
+            click.echo("===> Working in a detached mode")
             self.detached_mode = True
             self.certificate = certificate
         else:
@@ -150,6 +150,7 @@ class Kubeseal:
             )
         ic(command)
         subprocess.call(command, shell=True)
+        self.append_argo_annotation(filename=f"{secret_name}.yaml")
         click.echo("===> Done")
 
     @staticmethod
@@ -172,7 +173,21 @@ class Kubeseal:
             )
         ic(command)
         subprocess.call(command, shell=True)
+        self.append_argo_annotation(filename=secret_name)
         click.echo("===> Done")
+
+    @staticmethod
+    def append_argo_annotation(filename: str):
+        with open(filename, "r") as file:
+            secret = yaml.safe_load(file)
+
+        click.echo("===> Appending ArgoCD related annotations")
+        secret["metadata"]["annotations"] = {
+            "argocd.argoproj.io/sync-options": "SkipDryRunOnMissingResource=true"
+        }
+
+        with open(filename, "w") as file:
+            yaml.dump(secret, file)
 
     def fetch_certificate(self):
         click.echo("===> Downloading certificate for kubeseal...")
