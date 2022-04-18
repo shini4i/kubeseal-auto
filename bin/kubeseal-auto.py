@@ -26,7 +26,6 @@ class Kubeseal:
             click.echo(
                 f"===> Working with [{Fore.CYAN}{self.context}{Fore.RESET}] cluster"
             )
-            self.api = client.CoreV1Api()
             self.controller = self.find_sealed_secrets_controller()
         self.temp_file = NamedTemporaryFile()
 
@@ -34,13 +33,14 @@ class Kubeseal:
         click.echo("===> Removing temporary file")
         self.temp_file.close()
 
-    def find_sealed_secrets_controller(self):
+    @staticmethod
+    def find_sealed_secrets_controller():
         click.echo("===> Searching for SealedSecrets controller")
 
-        for pod in self.api.list_pod_for_all_namespaces(watch=False).items:
-            if "sealed" in pod.metadata.name:
-                name = pod.metadata.labels["app.kubernetes.io/instance"]
-                namespace = pod.metadata.namespace
+        for deployment in client.AppsV1Api().list_deployment_for_all_namespaces().items:
+            if "sealed" in deployment.metadata.name:
+                name = deployment.metadata.labels["app.kubernetes.io/instance"]
+                namespace = deployment.metadata.namespace
                 click.echo(
                     "===> Found the following controller: "
                     f"{Fore.CYAN}{namespace}/{name}"
@@ -50,8 +50,11 @@ class Kubeseal:
                     "namespace": namespace,
                 }
 
-    def get_all_namespaces(self) -> list:
-        namespaces = [ns.metadata.name for ns in self.api.list_namespace().items]
+    @staticmethod
+    def get_all_namespaces() -> list:
+        namespaces = [
+            ns.metadata.name for ns in client.CoreV1Api().list_namespace().items
+        ]
         ic(namespaces)
         return namespaces
 
