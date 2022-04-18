@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import subprocess
 from tempfile import NamedTemporaryFile
 
@@ -14,8 +16,8 @@ from kubernetes import client, config
 class Kubeseal:
     def __init__(self):
         config.load_kube_config()
-        context = config.list_kube_config_contexts()[1]["name"]
-        click.echo(f"===> Working with [{Fore.CYAN}{context}{Fore.RESET}] cluster")
+        self.context = config.list_kube_config_contexts()[1]["name"]
+        click.echo(f"===> Working with [{Fore.CYAN}{self.context}{Fore.RESET}] cluster")
 
         self.api = client.CoreV1Api()
         self.controller = self.find_sealed_secrets_controller()
@@ -145,18 +147,37 @@ class Kubeseal:
         subprocess.call(command, shell=True)
         click.echo("===> Done")
 
+    def fetch_certificate(self):
+        click.echo("===> Downloading certificate for kubeseal...")
+        command = (
+            f"kubeseal --controller-namespace {self.controller['namespace']} "
+            f"--controller-name {self.controller['name']} --fetch-cert "
+            f"> {self.context}-kubeseal-cert.crt"
+        )
+        ic(command)
+        subprocess.call(command, shell=True)
+        click.echo(f"===> Saved to {Fore.CYAN}{self.context}-kubeseal-cert.crt")
+
 
 @click.command()
 @click.option("--debug", required=False, is_flag=True, help="print debug information")
-@click.option("--edit", required=False, help="sealed secrets file to edit")
-def main(debug, edit):
+@click.option(
+    "--fetch",
+    required=False,
+    is_flag=True,
+    help="download SealedSecrets encryption certificate",
+)
+@click.option("--edit", required=False, help="SealedSecrets file to edit")
+def main(debug, fetch, edit):
     if not debug:
         ic.disable()
 
     colorama.init(autoreset=True)
     kubeseal = Kubeseal()
 
-    if edit:
+    if fetch:
+        kubeseal.fetch_certificate()
+    elif edit:
         secret = kubeseal.parse_existing_secret(edit)
         secret_params = {
             "name": secret["metadata"]["name"],
