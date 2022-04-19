@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "kubeseal_auto"
+name = "kubeseal-auto"
 version = "0.2.0"
 description = "An interactive wrapper for kubeseal binary"
 authors = ["Vadim Gedz <vadims@linux-tech.io>"]
