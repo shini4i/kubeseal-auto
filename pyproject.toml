@@ -5,6 +5,10 @@ description = "An interactive wrapper for kubeseal binary"
 authors = ["Vadim Gedz <vadims@linux-tech.io>"]
 license = "MIT"
 
+readme = "README.md"
+repository = "https://github.com/shini4i/kubeseal-auto"
+homepage = "https://github.com/shini4i/kubeseal-auto"
+
 [tool.poetry.dependencies]
 python = "^3.10"
 kubernetes = "^23.3.0"

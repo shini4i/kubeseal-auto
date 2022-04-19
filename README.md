@@ -7,8 +7,7 @@ The script is an interactive wrapper for kubeseal binary used to encrypt secrets
 ## Installation
 Homebrew can be used to install the script with all dependencies:
 ```bash
-brew tap shini4i/tap
-brew install kubeseal-auto
+pip install kubeseal-auto
 ```
 
 ## Usage
@@ -22,7 +21,7 @@ To append or change key values in existing secret:
 ```bash
 kubeseal-auto --edit secret-name.yaml
 ```
-Additionally, a limited "detached" mode is supported:
+Additionally, a "detached" mode is supported:
 ```bash
 # Download sealed-secrets certificate for local signing
 kubeseal-auto --fetch
