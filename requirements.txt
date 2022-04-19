@@ -1,6 +1,0 @@
-kubernetes==23.3.0
-click==8.1.2
-questionary==1.10.0
-icecream==2.1.2
-PyYAML==6.0
-colorama==0.4.4

@@ -1,4 +1,5 @@
 .idea/
 venv
+dist/
+**/__pycache__
 **/*.crt
-.python-version

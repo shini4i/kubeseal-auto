@@ -211,7 +211,7 @@ class Kubeseal:
 )
 @click.option("--cert", required=False, help="certificate to seal secret with")
 @click.option("--edit", required=False, help="SealedSecrets file to edit")
-def main(debug, fetch, cert, edit):
+def cli(debug, fetch, cert, edit):
     if not debug:
         ic.disable()
 
@@ -249,4 +249,4 @@ def main(debug, fetch, cert, edit):
 
 
 if __name__ == "__main__":
-    main()
+    cli()
