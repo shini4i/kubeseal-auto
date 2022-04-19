@@ -2,7 +2,7 @@
 
 The script is an interactive wrapper for kubeseal binary used to encrypt secrets for [sealed-secrets](https://github.com/bitnami-labs/sealed-secrets).
 
-[![asciicast](https://asciinema.org/a/fc0wjij4cijESNjHyf0gElhE0.svg)](https://asciinema.org/a/fc0wjij4cijESNjHyf0gElhE0)
+[![asciicast](https://asciinema.org/a/ynpQetDq5gPnKgNhAo5oYH6hK.svg)](https://asciinema.org/a/ynpQetDq5gPnKgNhAo5oYH6hK)
 
 ## Installation
 Homebrew can be used to install the script with all dependencies:
