@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-- Separated Kubeseal logic into two classed for easier maintainability
+- Separated Kubeseal logic into two classes for easier maintainability
 
 ## [0.2.1] - 2022-04-19
 ### Changed
