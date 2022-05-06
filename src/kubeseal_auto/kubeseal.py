@@ -13,12 +13,14 @@ from kubeseal_auto.cluster import Cluster
 class Kubeseal:
     def __init__(self, certificate=None):
         self.detached_mode = False
+
         if certificate is not None:
             click.echo("===> Working in a detached mode")
             self.detached_mode = True
             self.certificate = certificate
         else:
             self.cluster = Cluster()
+
         self.temp_file = NamedTemporaryFile()
 
     def __del__(self):
@@ -126,8 +128,16 @@ class Kubeseal:
 
     @staticmethod
     def parse_existing_secret(secret_name: str):
-        with open(secret_name, "r") as stream:
-            return yaml.safe_load(stream)
+        try:
+            with open(secret_name, "r") as stream:
+                try:
+                    return yaml.safe_load(stream)
+                except yaml.YAMLError:
+                    click.echo("Provided file is an invalid yaml. Aborting.")
+                    exit(1)
+        except FileNotFoundError:
+            click.echo("Provided file does not exists. Aborting.")
+            exit(1)
 
     def merge(self, secret_name: str):
         click.echo(f"===> Updating {secret_name}")
@@ -149,6 +159,14 @@ class Kubeseal:
 
     @staticmethod
     def append_argo_annotation(filename: str):
+        """
+        This method is used to append an annotations that will allow
+        ArgoCD to process git repository which has SealedSecrets before
+        the related controller is deployed in the cluster
+
+        Parameters:
+             filename: the filename of the resulting yaml file
+        """
         with open(filename, "r") as file:
             secret = yaml.safe_load(file)
 
@@ -161,6 +179,10 @@ class Kubeseal:
             yaml.dump(secret, file)
 
     def fetch_certificate(self):
+        """
+        This method downloads a certificate that can be used in the future
+        to encrypt secrets without direct access to the cluster
+        """
         click.echo("===> Downloading certificate for kubeseal...")
         command = (
             f"kubeseal --controller-namespace {self.cluster.get_controller_namespace()} "
