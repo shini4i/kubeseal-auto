@@ -6,7 +6,8 @@ import questionary
 import yaml
 from colorama import Fore
 from icecream import ic
-from kubernetes import client, config
+
+from kubeseal_auto.cluster import Cluster
 
 
 class Kubeseal:
@@ -17,42 +18,12 @@ class Kubeseal:
             self.detached_mode = True
             self.certificate = certificate
         else:
-            config.load_kube_config()
-            self.context = config.list_kube_config_contexts()[1]["name"]
-            click.echo(
-                f"===> Working with [{Fore.CYAN}{self.context}{Fore.RESET}] cluster"
-            )
-            self.controller = self.find_sealed_secrets_controller()
+            self.cluster = Cluster()
         self.temp_file = NamedTemporaryFile()
 
     def __del__(self):
         click.echo("===> Removing temporary file")
         self.temp_file.close()
-
-    @staticmethod
-    def find_sealed_secrets_controller() -> dict:
-        click.echo("===> Searching for SealedSecrets controller")
-
-        for deployment in client.AppsV1Api().list_deployment_for_all_namespaces().items:
-            if "sealed" in deployment.metadata.name:
-                name = deployment.metadata.labels["app.kubernetes.io/instance"]
-                namespace = deployment.metadata.namespace
-                click.echo(
-                    "===> Found the following controller: "
-                    f"{Fore.CYAN}{namespace}/{name}"
-                )
-                return {
-                    "name": name,
-                    "namespace": namespace,
-                }
-
-    @staticmethod
-    def get_all_namespaces() -> list:
-        namespaces = [
-            ns.metadata.name for ns in client.CoreV1Api().list_namespace().items
-        ]
-        ic(namespaces)
-        return namespaces
 
     def collect_parameters(self) -> dict:
         if self.detached_mode:
@@ -61,7 +32,8 @@ class Kubeseal:
             ).unsafe_ask()
         else:
             namespace = questionary.select(
-                "Select namespace for the new secret", choices=self.get_all_namespaces()
+                "Select namespace for the new secret",
+                choices=self.cluster.get_all_namespaces(),
             ).unsafe_ask()
         secret_type = questionary.select(
             "Select secret type to create",
@@ -143,8 +115,8 @@ class Kubeseal:
         else:
             command = (
                 f"kubeseal --format=yaml "
-                f"--controller-namespace={self.controller['namespace']} "
-                f"--controller-name={self.controller['name']} < {self.temp_file.name} "
+                f"--controller-namespace={self.cluster.get_controller_namespace()} "
+                f"--controller-name={self.cluster.get_controller_name()} < {self.temp_file.name} "
                 f"> {secret_name}.yaml"
             )
         ic(command)
@@ -167,8 +139,8 @@ class Kubeseal:
         else:
             command = (
                 f"kubeseal --format=yaml --merge-into {secret_name} "
-                f"--controller-namespace={self.controller['namespace']} "
-                f"--controller-name={self.controller['name']} < {self.temp_file.name}"
+                f"--controller-namespace={self.cluster.get_controller_namespace()} "
+                f"--controller-name={self.cluster.get_controller_name()} < {self.temp_file.name}"
             )
         ic(command)
         subprocess.call(command, shell=True)
@@ -191,10 +163,12 @@ class Kubeseal:
     def fetch_certificate(self):
         click.echo("===> Downloading certificate for kubeseal...")
         command = (
-            f"kubeseal --controller-namespace {self.controller['namespace']} "
-            f"--controller-name {self.controller['name']} --fetch-cert "
-            f"> {self.context}-kubeseal-cert.crt"
+            f"kubeseal --controller-namespace {self.cluster.get_controller_namespace()} "
+            f"--controller-name {self.cluster.get_controller_name()} --fetch-cert "
+            f"> {self.cluster.get_context()}-kubeseal-cert.crt"
         )
         ic(command)
         subprocess.call(command, shell=True)
-        click.echo(f"===> Saved to {Fore.CYAN}{self.context}-kubeseal-cert.crt")
+        click.echo(
+            f"===> Saved to {Fore.CYAN}{self.cluster.get_context()}-kubeseal-cert.crt"
+        )
