@@ -6,16 +6,23 @@ from kubernetes import client, config
 
 
 class Cluster:
-    def __init__(self):
-        self.context = self._select_context()
+    def __init__(self, select_context: bool):
+        self.context = self._set_context(select_context=select_context)
         config.load_kube_config(context=self.context)
         self.controller = self._find_sealed_secrets_controller()
 
     @staticmethod
-    def _select_context():
-        contexts, _ = config.list_kube_config_contexts()
-        contexts = [context["name"] for context in contexts]
-        return questionary.select("Select context to work with", choices=contexts).ask()
+    def _set_context(select_context: bool):
+        contexts, current_context = config.list_kube_config_contexts()
+        if select_context:
+            contexts = [context["name"] for context in contexts]
+            context = questionary.select(
+                "Select context to work with", choices=contexts
+            ).ask()
+        else:
+            context = current_context["name"]
+        click.echo(f"===> Working with [{Fore.CYAN}{context}{Fore.RESET}] cluster")
+        return context
 
     @staticmethod
     def get_all_namespaces() -> list:

@@ -11,7 +11,7 @@ from kubeseal_auto.cluster import Cluster
 
 
 class Kubeseal:
-    def __init__(self, certificate=None):
+    def __init__(self, select_context: bool, certificate=None):
         self.detached_mode = False
 
         if certificate is not None:
@@ -19,7 +19,7 @@ class Kubeseal:
             self.detached_mode = True
             self.certificate = certificate
         else:
-            cluster = Cluster()
+            cluster = Cluster(select_context=select_context)
             self.controller_name = cluster.get_controller_name()
             self.controller_namespace = cluster.get_controller_namespace()
             self.current_context_name = cluster.get_context()
