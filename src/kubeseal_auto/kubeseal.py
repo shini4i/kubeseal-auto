@@ -121,9 +121,9 @@ class Kubeseal:
         else:
             command = (
                 f"kubeseal --format=yaml "
+                f"--context={self.current_context_name} "
                 f"--controller-namespace={self.controller_namespace} "
                 f"--controller-name={self.controller_name} < {self.temp_file.name} "
-                f"--context={self.current_context_name} "
                 f"> {secret_name}.yaml"
             )
         ic(command)
