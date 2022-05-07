@@ -28,4 +28,3 @@ kubeseal-auto --fetch
 # Generate SealedSecret with local certificate
 kubeseal-auto --cert <kubectl-context>-kubeseal-cert.crt
 ```
-NOTE: The script is using active kubectl context. Providing a different context is not supported yet.

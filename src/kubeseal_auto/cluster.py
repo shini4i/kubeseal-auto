@@ -1,4 +1,5 @@
 import click
+import questionary
 from colorama import Fore
 from icecream import ic
 from kubernetes import client, config
@@ -6,8 +7,15 @@ from kubernetes import client, config
 
 class Cluster:
     def __init__(self):
-        config.load_kube_config()
+        self.context = self._select_context()
+        config.load_kube_config(context=self.context)
         self.controller = self._find_sealed_secrets_controller()
+
+    @staticmethod
+    def _select_context():
+        contexts, _ = config.list_kube_config_contexts()
+        contexts = [context["name"] for context in contexts]
+        return questionary.select("Select context to work with", choices=contexts).ask()
 
     @staticmethod
     def get_all_namespaces() -> list:
@@ -37,6 +45,5 @@ class Cluster:
     def get_controller_namespace(self):
         return self.controller["namespace"]
 
-    @staticmethod
-    def get_context():
-        return config.list_kube_config_contexts()[1]["name"]
+    def get_context(self):
+        return self.context
