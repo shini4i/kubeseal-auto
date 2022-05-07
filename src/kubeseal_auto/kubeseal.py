@@ -19,7 +19,11 @@ class Kubeseal:
             self.detached_mode = True
             self.certificate = certificate
         else:
-            self.cluster = Cluster()
+            cluster = Cluster()
+            self.controller_name = cluster.get_controller_name()
+            self.controller_namespace = cluster.get_controller_namespace()
+            self.current_context_name = cluster.get_context()
+            self.namespaces_list = cluster.get_all_namespaces()
 
         self.temp_file = NamedTemporaryFile()
 
@@ -35,7 +39,7 @@ class Kubeseal:
         else:
             namespace = questionary.select(
                 "Select namespace for the new secret",
-                choices=self.cluster.get_all_namespaces(),
+                choices=self.namespaces_list,
             ).unsafe_ask()
         secret_type = questionary.select(
             "Select secret type to create",
@@ -117,8 +121,8 @@ class Kubeseal:
         else:
             command = (
                 f"kubeseal --format=yaml "
-                f"--controller-namespace={self.cluster.get_controller_namespace()} "
-                f"--controller-name={self.cluster.get_controller_name()} < {self.temp_file.name} "
+                f"--controller-namespace={self.controller_namespace} "
+                f"--controller-name={self.controller_name} < {self.temp_file.name} "
                 f"> {secret_name}.yaml"
             )
         ic(command)
@@ -149,16 +153,15 @@ class Kubeseal:
         else:
             command = (
                 f"kubeseal --format=yaml --merge-into {secret_name} "
-                f"--controller-namespace={self.cluster.get_controller_namespace()} "
-                f"--controller-name={self.cluster.get_controller_name()} < {self.temp_file.name}"
+                f"--controller-namespace={self.controller_namespace} "
+                f"--controller-name={self.controller_name} < {self.temp_file.name}"
             )
         ic(command)
         subprocess.call(command, shell=True)
         self.append_argo_annotation(filename=secret_name)
         click.echo("===> Done")
 
-    @staticmethod
-    def append_argo_annotation(filename: str):
+    def append_argo_annotation(self, filename: str):
         """
         This method is used to append an annotations that will allow
         ArgoCD to process git repository which has SealedSecrets before
@@ -167,8 +170,7 @@ class Kubeseal:
         Parameters:
              filename: the filename of the resulting yaml file
         """
-        with open(filename, "r") as file:
-            secret = yaml.safe_load(file)
+        secret = self.parse_existing_secret(filename)
 
         click.echo("===> Appending ArgoCD related annotations")
         secret["metadata"]["annotations"] = {
@@ -185,12 +187,12 @@ class Kubeseal:
         """
         click.echo("===> Downloading certificate for kubeseal...")
         command = (
-            f"kubeseal --controller-namespace {self.cluster.get_controller_namespace()} "
-            f"--controller-name {self.cluster.get_controller_name()} --fetch-cert "
-            f"> {self.cluster.get_context()}-kubeseal-cert.crt"
+            f"kubeseal --controller-namespace {self.controller_namespace} "
+            f"--controller-name {self.controller_name} --fetch-cert "
+            f"> {self.current_context_name}-kubeseal-cert.crt"
         )
         ic(command)
         subprocess.call(command, shell=True)
         click.echo(
-            f"===> Saved to {Fore.CYAN}{self.cluster.get_context()}-kubeseal-cert.crt"
+            f"===> Saved to {Fore.CYAN}{self.current_context_name}-kubeseal-cert.crt"
         )
