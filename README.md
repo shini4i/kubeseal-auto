@@ -17,10 +17,16 @@ To run the script in fully interactive mode:
 kubeseal-auto
 ```
 
+To select kubeconfig context:
+```bash
+kubeseal-auto --select
+```
+
 To append or change key values in existing secret:
 ```bash
 kubeseal-auto --edit secret-name.yaml
 ```
+
 Additionally, a "detached" mode is supported:
 ```bash
 # Download sealed-secrets certificate for local signing
@@ -28,4 +34,3 @@ kubeseal-auto --fetch
 # Generate SealedSecret with local certificate
 kubeseal-auto --cert <kubectl-context>-kubeseal-cert.crt
 ```
-NOTE: The script is using active kubectl context. Providing a different context is not supported yet.

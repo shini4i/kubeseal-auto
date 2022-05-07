@@ -11,20 +11,27 @@ from kubeseal_auto.kubeseal import Kubeseal
 @click.command()
 @click.option("--debug", required=False, is_flag=True, help="print debug information")
 @click.option(
+    "--select",
+    required=False,
+    is_flag=True,
+    default=False,
+    help="prompt for context select",
+)
+@click.option(
     "--fetch", required=False, is_flag=True, help="download kubeseal encryption cert"
 )
 @click.option("--cert", required=False, help="certificate to seal secret with")
 @click.option("--edit", required=False, help="SealedSecrets file to edit")
-def cli(debug, fetch, cert, edit):
+def cli(debug, select, fetch, cert, edit):
     if not debug:
         ic.disable()
 
     colorama.init(autoreset=True)
 
     if cert:
-        kubeseal = Kubeseal(certificate=cert)
+        kubeseal = Kubeseal(certificate=cert, select_context=select)
     else:
-        kubeseal = Kubeseal()
+        kubeseal = Kubeseal(select_context=select)
 
     if fetch:
         kubeseal.fetch_certificate()

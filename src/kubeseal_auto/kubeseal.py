@@ -11,14 +11,20 @@ from kubeseal_auto.cluster import Cluster
 
 
 class Kubeseal:
-    def __init__(self, certificate=None):
+    def __init__(self, select_context: bool, certificate=None):
         self.detached_mode = False
+
         if certificate is not None:
             click.echo("===> Working in a detached mode")
             self.detached_mode = True
             self.certificate = certificate
         else:
-            self.cluster = Cluster()
+            cluster = Cluster(select_context=select_context)
+            self.controller_name = cluster.get_controller_name()
+            self.controller_namespace = cluster.get_controller_namespace()
+            self.current_context_name = cluster.get_context()
+            self.namespaces_list = cluster.get_all_namespaces()
+
         self.temp_file = NamedTemporaryFile()
 
     def __del__(self):
@@ -33,7 +39,7 @@ class Kubeseal:
         else:
             namespace = questionary.select(
                 "Select namespace for the new secret",
-                choices=self.cluster.get_all_namespaces(),
+                choices=self.namespaces_list,
             ).unsafe_ask()
         secret_type = questionary.select(
             "Select secret type to create",
@@ -115,8 +121,9 @@ class Kubeseal:
         else:
             command = (
                 f"kubeseal --format=yaml "
-                f"--controller-namespace={self.cluster.get_controller_namespace()} "
-                f"--controller-name={self.cluster.get_controller_name()} < {self.temp_file.name} "
+                f"--context={self.current_context_name} "
+                f"--controller-namespace={self.controller_namespace} "
+                f"--controller-name={self.controller_name} < {self.temp_file.name} "
                 f"> {secret_name}.yaml"
             )
         ic(command)
@@ -126,8 +133,16 @@ class Kubeseal:
 
     @staticmethod
     def parse_existing_secret(secret_name: str):
-        with open(secret_name, "r") as stream:
-            return yaml.safe_load(stream)
+        try:
+            with open(secret_name, "r") as stream:
+                try:
+                    return yaml.safe_load(stream)
+                except yaml.YAMLError:
+                    click.echo("Provided file is an invalid yaml. Aborting.")
+                    exit(1)
+        except FileNotFoundError:
+            click.echo("Provided file does not exists. Aborting.")
+            exit(1)
 
     def merge(self, secret_name: str):
         click.echo(f"===> Updating {secret_name}")
@@ -139,18 +154,25 @@ class Kubeseal:
         else:
             command = (
                 f"kubeseal --format=yaml --merge-into {secret_name} "
-                f"--controller-namespace={self.cluster.get_controller_namespace()} "
-                f"--controller-name={self.cluster.get_controller_name()} < {self.temp_file.name}"
+                f"--context={self.current_context_name} "
+                f"--controller-namespace={self.controller_namespace} "
+                f"--controller-name={self.controller_name} < {self.temp_file.name}"
             )
         ic(command)
         subprocess.call(command, shell=True)
         self.append_argo_annotation(filename=secret_name)
         click.echo("===> Done")
 
-    @staticmethod
-    def append_argo_annotation(filename: str):
-        with open(filename, "r") as file:
-            secret = yaml.safe_load(file)
+    def append_argo_annotation(self, filename: str):
+        """
+        This method is used to append an annotations that will allow
+        ArgoCD to process git repository which has SealedSecrets before
+        the related controller is deployed in the cluster
+
+        Parameters:
+             filename: the filename of the resulting yaml file
+        """
+        secret = self.parse_existing_secret(filename)
 
         click.echo("===> Appending ArgoCD related annotations")
         secret["metadata"]["annotations"] = {
@@ -161,14 +183,19 @@ class Kubeseal:
             yaml.dump(secret, file)
 
     def fetch_certificate(self):
+        """
+        This method downloads a certificate that can be used in the future
+        to encrypt secrets without direct access to the cluster
+        """
         click.echo("===> Downloading certificate for kubeseal...")
         command = (
-            f"kubeseal --controller-namespace {self.cluster.get_controller_namespace()} "
-            f"--controller-name {self.cluster.get_controller_name()} --fetch-cert "
-            f"> {self.cluster.get_context()}-kubeseal-cert.crt"
+            f"kubeseal --controller-namespace {self.controller_namespace} "
+            f"--context={self.current_context_name} "
+            f"--controller-name {self.controller_name} --fetch-cert "
+            f"> {self.current_context_name}-kubeseal-cert.crt"
         )
         ic(command)
         subprocess.call(command, shell=True)
         click.echo(
-            f"===> Saved to {Fore.CYAN}{self.cluster.get_context()}-kubeseal-cert.crt"
+            f"===> Saved to {Fore.CYAN}{self.current_context_name}-kubeseal-cert.crt"
         )
