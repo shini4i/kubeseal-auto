@@ -123,6 +123,7 @@ class Kubeseal:
                 f"kubeseal --format=yaml "
                 f"--controller-namespace={self.controller_namespace} "
                 f"--controller-name={self.controller_name} < {self.temp_file.name} "
+                f"--context={self.current_context_name} "
                 f"> {secret_name}.yaml"
             )
         ic(command)
@@ -153,6 +154,7 @@ class Kubeseal:
         else:
             command = (
                 f"kubeseal --format=yaml --merge-into {secret_name} "
+                f"--context={self.current_context_name} "
                 f"--controller-namespace={self.controller_namespace} "
                 f"--controller-name={self.controller_name} < {self.temp_file.name}"
             )
@@ -188,6 +190,7 @@ class Kubeseal:
         click.echo("===> Downloading certificate for kubeseal...")
         command = (
             f"kubeseal --controller-namespace {self.controller_namespace} "
+            f"--context={self.current_context_name} "
             f"--controller-name {self.controller_name} --fetch-cert "
             f"> {self.current_context_name}-kubeseal-cert.crt"
         )
