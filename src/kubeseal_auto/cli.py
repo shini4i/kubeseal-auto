@@ -22,7 +22,10 @@ from kubeseal_auto.kubeseal import Kubeseal
 )
 @click.option("--cert", required=False, help="certificate to seal secret with")
 @click.option("--edit", required=False, help="SealedSecrets file to edit")
-def cli(debug, select, fetch, cert, edit):
+@click.option(
+    "--reencrypt", required=False, help="path to directory with sealed secrets"
+)
+def cli(debug, select, fetch, cert, edit, reencrypt):
     if not debug:
         ic.disable()
 
@@ -35,6 +38,8 @@ def cli(debug, select, fetch, cert, edit):
 
     if fetch:
         kubeseal.fetch_certificate()
+    elif reencrypt:
+        kubeseal.reencrypt(src=reencrypt)
     elif edit:
         secret = kubeseal.parse_existing_secret(edit)
         secret_params = {

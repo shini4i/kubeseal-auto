@@ -1,4 +1,6 @@
+import os
 import subprocess
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import click
@@ -6,6 +8,7 @@ import questionary
 import yaml
 from colorama import Fore
 from icecream import ic
+from yaml.composer import ComposerError
 
 from kubeseal_auto.cluster import Cluster
 
@@ -30,6 +33,17 @@ class Kubeseal:
     def __del__(self):
         click.echo("===> Removing temporary file")
         self.temp_file.close()
+
+    def _find_sealed_secrets(self, src: str) -> list:
+        secrets = []
+        for path in Path(src).rglob("*.yaml"):
+            secret = self.parse_existing_secret(str(path.absolute()))
+            try:
+                if secret is not None and secret["kind"] == "SealedSecret":
+                    secrets.append(path.absolute())
+            except KeyError:
+                ...
+        return secrets
 
     def collect_parameters(self) -> dict:
         if self.detached_mode:
@@ -135,11 +149,9 @@ class Kubeseal:
     def parse_existing_secret(secret_name: str):
         try:
             with open(secret_name, "r") as stream:
-                try:
-                    return yaml.safe_load(stream)
-                except yaml.YAMLError:
-                    click.echo("Provided file is an invalid yaml. Aborting.")
-                    exit(1)
+                return yaml.safe_load(stream)
+        except ComposerError:
+            click.echo("Only single document yaml files are supported. Skipping.")
         except FileNotFoundError:
             click.echo("Provided file does not exists. Aborting.")
             exit(1)
@@ -199,3 +211,26 @@ class Kubeseal:
         click.echo(
             f"===> Saved to {Fore.CYAN}{self.current_context_name}-kubeseal-cert.crt"
         )
+
+    def reencrypt(self, src: str):
+        """
+        This method re-encrypts the existing SealedSecret files in a user provided directory
+        using the newest encryption certificate
+
+        Parameters:
+            src: the directory with SealedSecret files
+        """
+        for secret in self._find_sealed_secrets(src):
+            click.echo(f"Re-encrypting {secret}")
+            os.rename(secret, f"{secret}_tmp")
+            command = (
+                f"kubeseal --format=yaml "
+                f"--context={self.current_context_name} "
+                f"--controller-namespace {self.controller_namespace} "
+                f"--controller-name {self.controller_name} "
+                f"--re-encrypt < {secret}_tmp > {secret}"
+            )
+            ic(command)
+            subprocess.call(command, shell=True)
+            os.remove(f"{secret}_tmp")
+            self.append_argo_annotation(secret)
