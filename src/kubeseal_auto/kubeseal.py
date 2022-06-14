@@ -226,6 +226,7 @@ class Kubeseal:
             os.rename(secret, f"{secret}_tmp")
             command = (
                 f"kubeseal --format=yaml "
+                f"--context={self.current_context_name} "
                 f"--controller-namespace {self.controller_namespace} "
                 f"--controller-name {self.controller_name} "
                 f"--re-encrypt < {secret}_tmp > {secret}"
