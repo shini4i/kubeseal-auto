@@ -184,7 +184,6 @@ class Kubeseal:
         Parameters:
              filename: the filename of the resulting yaml file
         """
-        click.echo(filename)
         secret = self.parse_existing_secret(filename)
 
         click.echo("===> Appending ArgoCD related annotations")
