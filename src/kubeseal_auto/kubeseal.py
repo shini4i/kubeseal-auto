@@ -22,11 +22,11 @@ class Kubeseal:
             self.detached_mode = True
             self.certificate = certificate
         else:
-            cluster = Cluster(select_context=select_context)
-            self.controller_name = cluster.get_controller_name()
-            self.controller_namespace = cluster.get_controller_namespace()
-            self.current_context_name = cluster.get_context()
-            self.namespaces_list = cluster.get_all_namespaces()
+            self.cluster = Cluster(select_context=select_context)
+            self.controller_name = self.cluster.get_controller_name()
+            self.controller_namespace = self.cluster.get_controller_namespace()
+            self.current_context_name = self.cluster.get_context()
+            self.namespaces_list = self.cluster.get_all_namespaces()
 
         self.temp_file = NamedTemporaryFile()
 
@@ -234,3 +234,15 @@ class Kubeseal:
             subprocess.call(command, shell=True)
             os.remove(f"{secret}_tmp")
             self.append_argo_annotation(secret)
+
+    def backup(self):
+        """
+        This method makes a backup of the latest SealedSecret controllers encryption secret
+        """
+        secret = self.cluster.find_latest_sealed_secrets_controller_certificate()
+        command = (
+            f"kubectl get secret -n {self.controller_namespace} "
+            f"{secret} -o yaml > {self.current_context_name}-secret-backup.yaml"
+        )
+        ic(command)
+        subprocess.call(command, shell=True)

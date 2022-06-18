@@ -25,7 +25,13 @@ from kubeseal_auto.kubeseal import Kubeseal
 @click.option(
     "--reencrypt", required=False, help="path to directory with sealed secrets"
 )
-def cli(debug, select, fetch, cert, edit, reencrypt):
+@click.option(
+    "--backup",
+    required=False,
+    is_flag=True,
+    help="backups controllers encryption secret",
+)
+def cli(debug, select, fetch, cert, edit, reencrypt, backup):
     if not debug:
         ic.disable()
 
@@ -38,6 +44,8 @@ def cli(debug, select, fetch, cert, edit, reencrypt):
 
     if fetch:
         kubeseal.fetch_certificate()
+    elif backup:
+        kubeseal.backup()
     elif reencrypt:
         kubeseal.reencrypt(src=reencrypt)
     elif edit:

@@ -5,9 +5,9 @@ The script is an interactive wrapper for kubeseal binary used to encrypt secrets
 [![asciicast](https://asciinema.org/a/ynpQetDq5gPnKgNhAo5oYH6hK.svg)](https://asciinema.org/a/ynpQetDq5gPnKgNhAo5oYH6hK)
 
 ## Installation
-Homebrew can be used to install the script with all dependencies:
+pipx can be used to install the script:
 ```bash
-pip install kubeseal-auto
+pipx install kubeseal-auto
 ```
 
 ## Usage

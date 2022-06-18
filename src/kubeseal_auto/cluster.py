@@ -46,6 +46,32 @@ class Cluster:
                 )
                 return {"name": name, "namespace": namespace}
 
+    def find_latest_sealed_secrets_controller_certificate(self) -> str:
+        res = client.CoreV1Api().list_namespaced_secret(
+            self.controller.get("namespace")
+        )
+        secrets = []
+        for secret in res.items:
+            if (
+                "sealed-secrets" in secret.metadata.name
+                and secret.type == "kubernetes.io/tls"
+            ):
+                secrets.append(
+                    {
+                        "name": secret.metadata.name,
+                        "timestamp": secret.metadata.creation_timestamp,
+                    }
+                )
+
+        ic(secrets)
+
+        if len(secrets) > 1:
+            return sorted(secrets, key=lambda x: x["timestamp"], reverse=True)[0][
+                "name"
+            ]
+
+        return secrets[0]["name"]
+
     def get_controller_name(self):
         return self.controller["name"]
 
