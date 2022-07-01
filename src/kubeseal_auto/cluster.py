@@ -34,12 +34,14 @@ class Cluster:
     def _find_sealed_secrets_controller() -> dict:
         click.echo("===> Searching for SealedSecrets controller")
 
-        # Here we are basically making an educated guess that deployment that contains
-        # "sealed" in name is the one we are looking for.
-        # It will be good to change this logic to something more reasonable in the future.
+        expected_label = "app.kubernetes.io/instance"
+
         for deployment in client.AppsV1Api().list_deployment_for_all_namespaces().items:
-            if "sealed" in deployment.metadata.name:
-                name = deployment.metadata.labels["app.kubernetes.io/instance"]
+            if (
+                expected_label in deployment.metadata.labels
+                and deployment.metadata.labels[expected_label] == "sealed-secrets"
+            ):
+                name = deployment.metadata.labels[expected_label]
                 namespace = deployment.metadata.namespace
                 click.echo(
                     f"===> Found the following controller: {Fore.CYAN}{namespace}/{name}"
@@ -65,12 +67,10 @@ class Cluster:
 
         ic(secrets)
 
-        if len(secrets) > 1:
-            return sorted(secrets, key=lambda x: x["timestamp"], reverse=True)[0][
-                "name"
-            ]
+        if secrets:
+            secrets.sort(key=lambda x: x["timestamp"])
 
-        return secrets[0]["name"]
+        return secrets[-1]["name"]
 
     def get_controller_name(self):
         return self.controller["name"]
