@@ -191,8 +191,8 @@ class Kubeseal:
             "argocd.argoproj.io/sync-options": "SkipDryRunOnMissingResource=true"
         }
 
-        with open(filename, "w") as file:
-            yaml.dump(secret, file)
+        with open(filename, "w") as stream:
+            yaml.safe_dump(secret, stream)
 
     def fetch_certificate(self):
         """
