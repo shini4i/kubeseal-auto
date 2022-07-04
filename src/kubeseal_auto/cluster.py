@@ -36,17 +36,21 @@ class Cluster:
 
         expected_label = "app.kubernetes.io/instance"
 
-        for deployment in client.AppsV1Api().list_deployment_for_all_namespaces().items:
-            if (
-                expected_label in deployment.metadata.labels
-                and deployment.metadata.labels[expected_label] == "sealed-secrets"
-            ):
+        for deployment in (
+            client.AppsV1Api()
+            .list_deployment_for_all_namespaces(label_selector=expected_label)
+            .items
+        ):
+            if deployment.metadata.labels[expected_label] == "sealed-secrets":
                 name = deployment.metadata.labels[expected_label]
                 namespace = deployment.metadata.namespace
                 click.echo(
                     f"===> Found the following controller: {Fore.CYAN}{namespace}/{name}"
                 )
                 return {"name": name, "namespace": namespace}
+
+        click.echo("===> No controller found")
+        exit(1)
 
     def find_latest_sealed_secrets_controller_certificate(self) -> str:
         res = client.CoreV1Api().list_namespaced_secret(
