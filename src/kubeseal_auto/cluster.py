@@ -56,6 +56,9 @@ class Cluster:
         click.echo("===> No controller found")
         exit(1)
 
+        click.echo("===> No controller found")
+        exit(1)
+
     def find_latest_sealed_secrets_controller_certificate(self) -> str:
         res = client.CoreV1Api().list_namespaced_secret(
             self.controller.get("namespace")
