@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0] - 2022-07-05
 ### Added
-- kubeseal-auto now downloads the same version of kubeseal binary as the version of sealed-secret controller (only in non detached mode)
+- kubeseal-auto now downloads the same version of kubeseal binary as the version of sealed-secret controller (only in non-detached mode)
 
 ## [0.3.1] - 2022-07-04
 ### Fixed
