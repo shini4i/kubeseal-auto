@@ -11,6 +11,7 @@ pipx install kubeseal-auto
 ```
 
 ## Usage
+By default, the script will check the version of sealed-secret controller and download the corresponding kubeseal binary to ~/bin directory.
 
 To run the script in fully interactive mode:
 ```bash
@@ -24,6 +25,7 @@ kubeseal-auto --fetch
 # Generate SealedSecret with local certificate
 kubeseal-auto --cert <kubectl-context>-kubeseal-cert.crt
 ```
+> Note: In the detached mode kubeseal-auto will not download the kubeseal binary and will look for in $PATH.
 
 To select kubeconfig context:
 ```bash

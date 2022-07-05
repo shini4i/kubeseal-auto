@@ -17,16 +17,22 @@ class Kubeseal:
     def __init__(self, select_context: bool, certificate=None):
         self.detached_mode = False
 
+        self.binary = "kubeseal"
+
         if certificate is not None:
             click.echo("===> Working in a detached mode")
             self.detached_mode = True
             self.certificate = certificate
         else:
+            home_dir = os.path.expanduser("~")
             self.cluster = Cluster(select_context=select_context)
             self.controller_name = self.cluster.get_controller_name()
             self.controller_namespace = self.cluster.get_controller_namespace()
             self.current_context_name = self.cluster.get_context()
             self.namespaces_list = self.cluster.get_all_namespaces()
+            self.binary = (
+                f"{home_dir}/bin/kubeseal-{self.cluster.get_controller_version()}"
+            )
 
         self.temp_file = NamedTemporaryFile()
 
@@ -128,13 +134,13 @@ class Kubeseal:
         click.echo("===> Sealing generated secret file")
         if self.detached_mode:
             command = (
-                f"kubeseal --format=yaml "
+                f"{self.binary} --format=yaml "
                 f"--cert={self.certificate} < {self.temp_file.name} "
                 f"> {secret_name}.yaml"
             )
         else:
             command = (
-                f"kubeseal --format=yaml "
+                f"{self.binary} --format=yaml "
                 f"--context={self.current_context_name} "
                 f"--controller-namespace={self.controller_namespace} "
                 f"--controller-name={self.controller_name} < {self.temp_file.name} "
@@ -160,12 +166,12 @@ class Kubeseal:
         click.echo(f"===> Updating {secret_name}")
         if self.detached_mode:
             command = (
-                f"kubeseal --format=yaml --merge-into {secret_name} "
+                f"{self.binary} --format=yaml --merge-into {secret_name} "
                 f"--cert={self.certificate} < {self.temp_file.name} "
             )
         else:
             command = (
-                f"kubeseal --format=yaml --merge-into {secret_name} "
+                f"{self.binary} --format=yaml --merge-into {secret_name} "
                 f"--context={self.current_context_name} "
                 f"--controller-namespace={self.controller_namespace} "
                 f"--controller-name={self.controller_name} < {self.temp_file.name}"

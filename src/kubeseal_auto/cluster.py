@@ -4,11 +4,14 @@ from colorama import Fore
 from icecream import ic
 from kubernetes import client, config
 
+from kubeseal_auto.host import Host
+
 
 class Cluster:
     def __init__(self, select_context: bool):
         self.context = self._set_context(select_context=select_context)
         config.load_kube_config(context=self.context)
+        self.host = Host()
         self.controller = self._find_sealed_secrets_controller()
 
     @staticmethod
@@ -30,8 +33,7 @@ class Cluster:
         ic(ns_list)
         return ns_list
 
-    @staticmethod
-    def _find_sealed_secrets_controller() -> dict:
+    def _find_sealed_secrets_controller(self) -> dict:
         click.echo("===> Searching for SealedSecrets controller")
 
         expected_label = "app.kubernetes.io/instance"
@@ -44,10 +46,15 @@ class Cluster:
             if deployment.metadata.labels[expected_label] == "sealed-secrets":
                 name = deployment.metadata.labels[expected_label]
                 namespace = deployment.metadata.namespace
+                version = deployment.metadata.labels["app.kubernetes.io/version"]
                 click.echo(
-                    f"===> Found the following controller: {Fore.CYAN}{namespace}/{name}"
+                    f"===> Found the following controller: {Fore.CYAN}{namespace}/{name}:{version}"
                 )
-                return {"name": name, "namespace": namespace}
+                self.host.ensure_kubeseal_binary(version=version)
+                return {"name": name, "namespace": namespace, "version": version}
+
+        click.echo("===> No controller found")
+        exit(1)
 
         click.echo("===> No controller found")
         exit(1)
@@ -81,6 +88,9 @@ class Cluster:
 
     def get_controller_namespace(self):
         return self.controller["namespace"]
+
+    def get_controller_version(self):
+        return self.controller["version"].split("v")[-1]
 
     def get_context(self):
         return self.context
