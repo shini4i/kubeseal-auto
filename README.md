@@ -5,7 +5,8 @@ The script is an interactive wrapper for kubeseal binary used to encrypt secrets
 ![demo](assets/demo.gif)
 
 ## Installation
-pipx can be used to install the script:
+The recommended way to install this script is [pipx](https://github.com/pypa/pipx):
+
 ```bash
 pipx install kubeseal-auto
 ```
@@ -25,7 +26,7 @@ kubeseal-auto --fetch
 # Generate SealedSecret with local certificate
 kubeseal-auto --cert <kubectl-context>-kubeseal-cert.crt
 ```
-> Note: In the detached mode kubeseal-auto will not download the kubeseal binary and will look for in $PATH.
+> Note: In the detached mode kubeseal-auto will not download the kubeseal binary and will look for it in the system $PATH.
 
 To select kubeconfig context:
 ```bash
@@ -42,7 +43,10 @@ To reencrypt all secrets in a directory (not working in a detached mode):
 kubeseal-auto --reencrypt /path/to/directory
 ```
 
-To back up the encryption keys (not working in a detached mode):
+To back up the encryption and decryption keys (not working in a detached mode):
 ```bash
 kubeseal-auto --backup
 ```
+
+## Contributing
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.

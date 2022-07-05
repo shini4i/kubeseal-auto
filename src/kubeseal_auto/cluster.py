@@ -48,13 +48,12 @@ class Cluster:
                 namespace = deployment.metadata.namespace
                 version = deployment.metadata.labels["app.kubernetes.io/version"]
                 click.echo(
-                    f"===> Found the following controller: {Fore.CYAN}{namespace}/{name}:{version}"
+                    f"===> Found the following controller: "
+                    f"[{Fore.CYAN}{namespace}/{name}{Fore.RESET}]\n"
+                    f"===> Controller version: [{Fore.CYAN}{version}{Fore.RESET}]"
                 )
                 self.host.ensure_kubeseal_binary(version=version)
                 return {"name": name, "namespace": namespace, "version": version}
-
-        click.echo("===> No controller found")
-        exit(1)
 
         click.echo("===> No controller found")
         exit(1)
