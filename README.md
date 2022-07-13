@@ -1,8 +1,17 @@
+<div align="center">
+
 # kubeseal-auto
 
-The script is an interactive wrapper for kubeseal binary used to encrypt secrets for [sealed-secrets](https://github.com/bitnami-labs/sealed-secrets).
+<b>kubeseal-auto</b> is an interactive wrapper for kubeseal binary used to encrypt secrets for [sealed-secrets](https://github.com/bitnami-labs/sealed-secrets).
 
-![demo](assets/demo.gif)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/kubeseal-auto?style=plastic)
+![PyPI](https://img.shields.io/pypi/v/kubeseal-auto?style=plastic)
+![Version](https://img.shields.io/github/v/tag/shini4i/kubeseal-auto?style=plastic)
+![license](https://img.shields.io/github/license/shini4i/kubeseal-auto?style=plastic)
+
+<img src="assets/demo.gif" width="75%" alt="demo"/>
+
+</div>
 
 ## Installation
 The recommended way to install this script is [pipx](https://github.com/pypa/pipx):
