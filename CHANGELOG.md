@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2]
+### Fixed
+- Correct download link for amd64
+- Exit 1 if unsupported architecture or OS is detected
+
 ## [0.4.1] - 2022-07-15
 ### Changed
 - Print controller version on a separated line

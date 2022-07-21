@@ -17,7 +17,14 @@ class Host:
 
     @staticmethod
     def _get_cpu_type():
-        return platform.machine()
+        match platform.machine():
+            case "x86_64":
+                return "amd64"
+            case "arm64":
+                return "arm64"
+            case _:
+                click.echo(f"Unsupported CPU: {platform.machine()}")
+                exit(1)
 
     @staticmethod
     def _get_system_type():
@@ -26,7 +33,8 @@ class Host:
         elif platform.system() == "Linux":
             return "linux"
         else:
-            return "unsupported"
+            click.echo(f"Unsupported system: {platform.system()}")
+            exit(1)
 
     def _download_kubeseal_binary(self, version: str):
         click.echo("Downloading kubeseal binary")
