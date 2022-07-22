@@ -28,41 +28,36 @@ class Host:
 
     @staticmethod
     def _get_system_type():
-        if platform.system() == "Darwin":
-            return "darwin"
-        elif platform.system() == "Linux":
-            return "linux"
-        else:
-            click.echo(f"Unsupported system: {platform.system()}")
-            exit(1)
+        match platform.system():
+            case "Linux":
+                return "linux"
+            case "Darwin":
+                return "darwin"
+            case _:
+                click.echo(f"Unsupported system: {platform.system()}")
+                exit(1)
 
     def _download_kubeseal_binary(self, version: str):
         click.echo("Downloading kubeseal binary")
 
         url = f"{self.base_url}/v{version}/kubeseal-{version}-{self.system}-{self.cpu_type}.tar.gz"
         ic(url)
+        local_path = f"/tmp/kubeseal-{version}-{self.system}-{self.cpu_type}.tar.gz"
+        ic(local_path)
 
         if not os.path.exists(self.bin_location):
             os.makedirs(self.bin_location)
 
         click.echo(f"Downloading {url}")
-        with requests.get(
-            f"{self.base_url}/v{version}/kubeseal-{version}-{self.system}-{self.cpu_type}.tar.gz"
-        ) as r:
-            with open(
-                f"/tmp/kubeseal-{version}-{self.system}-{self.cpu_type}.tar.gz", "wb"
-            ) as f:
+        with requests.get(url) as r:
+            with open(local_path, "wb") as f:
                 f.write(r.content)
 
-        os.system(
-            f"tar -xvf "
-            f"/tmp/kubeseal-{version}-{self.system}-{self.cpu_type}.tar.gz "
-            f"-C {self.bin_location} kubeseal"
-        )
+        os.system(f"tar -xvf {local_path} -C {self.bin_location} kubeseal")
         os.rename(
             f"{self.bin_location}/kubeseal", f"{self.bin_location}/kubeseal-{version}"
         )
-        os.remove(f"/tmp/kubeseal-{version}-{self.system}-{self.cpu_type}.tar.gz")
+        os.remove(local_path)
 
     def ensure_kubeseal_binary(self, version: str):
         version = version.split("v")[-1]
