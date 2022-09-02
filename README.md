@@ -9,7 +9,7 @@
 ![PyPI](https://img.shields.io/pypi/v/kubeseal-auto?style=plastic)
 ![license](https://img.shields.io/github/license/shini4i/kubeseal-auto?style=plastic)
 
-<img src="assets/demo.gif" width="75%" alt="demo"/>
+<img src="https://raw.githubusercontent.com/shini4i/assets/main/src/kubeseal-auto/demo.gif" alt="Showcase">
 
 </div>
 
