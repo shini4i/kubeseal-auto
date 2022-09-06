@@ -30,9 +30,13 @@ class Kubeseal:
             self.controller_namespace = self.cluster.get_controller_namespace()
             self.current_context_name = self.cluster.get_context()
             self.namespaces_list = self.cluster.get_all_namespaces()
-            self.binary = (
-                f"{home_dir}/bin/kubeseal-{self.cluster.get_controller_version()}"
-            )
+            version = self.cluster.get_controller_version()
+
+            try:
+                self.cluster.ensure_kubeseal_version(version)
+                self.binary = f"{home_dir}/bin/kubeseal-{version}"
+            except FileNotFoundError:
+                click.echo("==> Falling back to the default kubeseal binary")
 
         self.temp_file = NamedTemporaryFile()
 
@@ -226,7 +230,7 @@ class Kubeseal:
             click.echo(f"Re-encrypting {secret}")
             os.rename(secret, f"{secret}_tmp")
             command = (
-                f"kubeseal --format=yaml "
+                "kubeseal --format=yaml "
                 f"--context={self.current_context_name} "
                 f"--controller-namespace {self.controller_namespace} "
                 f"--controller-name {self.controller_name} "
