@@ -48,11 +48,10 @@ class Cluster:
                 namespace = deployment.metadata.namespace
                 version = deployment.metadata.labels["app.kubernetes.io/version"]
                 click.echo(
-                    f"===> Found the following controller: "
+                    "===> Found the following controller: "
                     f"[{Fore.CYAN}{namespace}/{name}{Fore.RESET}]\n"
                     f"===> Controller version: [{Fore.CYAN}{version}{Fore.RESET}]"
                 )
-                self.host.ensure_kubeseal_binary(version=version)
                 return {"name": name, "namespace": namespace, "version": version}
 
         click.echo("===> No controller found")
@@ -81,6 +80,9 @@ class Cluster:
             secrets.sort(key=lambda x: x["timestamp"])
 
         return secrets[-1]["name"]
+
+    def ensure_kubeseal_version(self, version: str):
+        self.host.ensure_kubeseal_binary(version=version)
 
     def get_controller_name(self):
         return self.controller["name"]
