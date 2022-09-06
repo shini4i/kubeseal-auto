@@ -43,7 +43,7 @@ class Cluster:
             .list_deployment_for_all_namespaces(label_selector=expected_label)
             .items
         ):
-            if deployment.metadata.labels[expected_label] == "sealed-secrets":
+            if "sealed-secrets" in deployment.metadata.labels[expected_label]:
                 name = deployment.metadata.labels[expected_label]
                 namespace = deployment.metadata.namespace
                 version = deployment.metadata.labels["app.kubernetes.io/version"]
