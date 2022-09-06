@@ -36,10 +36,6 @@ class Kubeseal:
 
         self.temp_file = NamedTemporaryFile()
 
-    def __del__(self):
-        click.echo("===> Removing temporary file")
-        self.temp_file.close()
-
     def _find_sealed_secrets(self, src: str) -> list:
         secrets = []
         for path in Path(src).rglob("*.yaml"):

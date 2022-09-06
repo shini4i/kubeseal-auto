@@ -50,6 +50,9 @@ class Host:
 
         click.echo(f"Downloading {url}")
         with requests.get(url) as r:
+            if r.status_code == 404:
+                click.echo(f"The required version {version} is not available")
+                exit(1)
             with open(local_path, "wb") as f:
                 f.write(r.content)
 
