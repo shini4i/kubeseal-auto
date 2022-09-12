@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+__version__ = "0.4.4"
+
 import click
 import colorama
 from icecream import ic
@@ -9,7 +11,10 @@ from kubeseal_auto.kubeseal import Kubeseal
 
 
 @click.command()
-@click.option("--debug", required=False, is_flag=True, help="print debug information")
+@click.option("--version", required=False, is_flag=True, help="print version")
+@click.option(
+    "--debug", required=False, is_flag=True, help="print debug information"
+)
 @click.option(
     "--select",
     required=False,
@@ -18,7 +23,10 @@ from kubeseal_auto.kubeseal import Kubeseal
     help="prompt for context select",
 )
 @click.option(
-    "--fetch", required=False, is_flag=True, help="download kubeseal encryption cert"
+    "--fetch",
+    required=False,
+    is_flag=True,
+    help="download kubeseal encryption cert",
 )
 @click.option("--cert", required=False, help="certificate to seal secret with")
 @click.option("--edit", required=False, help="SealedSecrets file to edit")
@@ -31,9 +39,13 @@ from kubeseal_auto.kubeseal import Kubeseal
     is_flag=True,
     help="backups controllers encryption secret",
 )
-def cli(debug, select, fetch, cert, edit, reencrypt, backup):
+def cli(debug, select, fetch, cert, edit, reencrypt, backup, version):
     if not debug:
         ic.disable()
+
+    if version:
+        click.echo(__version__)
+        return
 
     colorama.init(autoreset=True)
 
