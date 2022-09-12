@@ -1,6 +1,6 @@
 .PHONY: run
 run:
-	@poetry run kubeseal-auto --help --debug
+	@poetry run kubeseal-auto --debug
 
 .PHONY: build
 build:
