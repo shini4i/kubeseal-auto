@@ -24,16 +24,23 @@ class Cluster:
             ).ask()
         else:
             context = current_context["name"]
-        click.echo(f"===> Working with [{Fore.CYAN}{context}{Fore.RESET}] cluster")
+        click.echo(
+            f"===> Working with [{Fore.CYAN}{context}{Fore.RESET}] cluster"
+        )
         return context
 
     @staticmethod
     def get_all_namespaces() -> list:
-        ns_list = [ns.metadata.name for ns in client.CoreV1Api().list_namespace().items]
+        ns_list = []
+
+        for ns in client.CoreV1Api().list_namespace().items:
+            ns_list.append(ns.metadata.name)
         ic(ns_list)
+
         return ns_list
 
-    def _find_sealed_secrets_controller(self) -> dict:
+    @staticmethod
+    def _find_sealed_secrets_controller() -> dict:
         click.echo("===> Searching for SealedSecrets controller")
 
         expected_label = "app.kubernetes.io/instance"
@@ -46,13 +53,22 @@ class Cluster:
             if "sealed-secrets" in deployment.metadata.labels[expected_label]:
                 name = deployment.metadata.labels[expected_label]
                 namespace = deployment.metadata.namespace
-                version = deployment.metadata.labels["app.kubernetes.io/version"]
+                version = deployment.metadata.labels[
+                    "app.kubernetes.io/version"
+                ]
+
                 click.echo(
                     "===> Found the following controller: "
                     f"[{Fore.CYAN}{namespace}/{name}{Fore.RESET}]\n"
-                    f"===> Controller version: [{Fore.CYAN}{version}{Fore.RESET}]"
+                    "===> Controller version: "
+                    f"[{Fore.CYAN}{version}{Fore.RESET}]"
                 )
-                return {"name": name, "namespace": namespace, "version": version}
+
+                return {
+                    "name": name,
+                    "namespace": namespace,
+                    "version": version,
+                }
 
         click.echo("===> No controller found")
         exit(1)
