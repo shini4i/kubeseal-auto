@@ -10,8 +10,36 @@ from icecream import ic
 from kubeseal_auto.kubeseal import Kubeseal
 
 
-@click.command()
-@click.option("--version", required=False, is_flag=True, help="print version")
+def create_new_secret(kubeseal: Kubeseal):
+    secret_params = kubeseal.collect_parameters()
+    ic(secret_params)
+
+    match secret_params["type"]:
+        case "generic":
+            kubeseal.create_generic_secret(secret_params=secret_params)
+        case "tls":
+            kubeseal.create_tls_secret(secret_params=secret_params)
+        case "docker-registry":
+            kubeseal.create_regcred_secret(secret_params=secret_params)
+
+    kubeseal.seal(secret_name=secret_params["name"])
+
+
+def edit_secret(kubeseal: Kubeseal, file: str):
+    secret = kubeseal.parse_existing_secret(file)
+    secret_params = {
+        "name": secret["metadata"]["name"],
+        "namespace": secret["metadata"]["namespace"],
+    }
+    ic(secret_params)
+    kubeseal.create_generic_secret(secret_params=secret_params)
+    kubeseal.merge(file)
+
+
+@click.command(help="Automate the process of sealing secrets for Kubernetes")
+@click.option(
+    "--version", "-v", required=False, is_flag=True, help="print version"
+)
 @click.option(
     "--debug", required=False, is_flag=True, help="print debug information"
 )
@@ -28,8 +56,12 @@ from kubeseal_auto.kubeseal import Kubeseal
     is_flag=True,
     help="download kubeseal encryption cert",
 )
-@click.option("--cert", required=False, help="certificate to seal secret with")
-@click.option("--edit", required=False, help="SealedSecrets file to edit")
+@click.option(
+    "--cert", "-c", required=False, help="certificate to seal secret with"
+)
+@click.option(
+    "--edit", "-e", required=False, help="SealedSecrets file to edit"
+)
 @click.option(
     "--reencrypt", required=False, help="path to directory with sealed secrets"
 )
@@ -56,32 +88,21 @@ def cli(debug, select, fetch, cert, edit, reencrypt, backup, version):
 
     if fetch:
         kubeseal.fetch_certificate()
-    elif backup:
+        return
+
+    if backup:
         kubeseal.backup()
-    elif reencrypt:
+        return
+
+    if reencrypt:
         kubeseal.reencrypt(src=reencrypt)
-    elif edit:
-        secret = kubeseal.parse_existing_secret(edit)
-        secret_params = {
-            "name": secret["metadata"]["name"],
-            "namespace": secret["metadata"]["namespace"],
-        }
-        ic(secret_params)
-        kubeseal.create_generic_secret(secret_params=secret_params)
-        kubeseal.merge(edit)
-    else:
-        secret_params = kubeseal.collect_parameters()
-        ic(secret_params)
+        return
 
-        match secret_params["type"]:
-            case "generic":
-                kubeseal.create_generic_secret(secret_params=secret_params)
-            case "tls":
-                kubeseal.create_tls_secret(secret_params=secret_params)
-            case "docker-registry":
-                kubeseal.create_regcred_secret(secret_params=secret_params)
+    if edit:
+        edit_secret(kubeseal=kubeseal, file=edit)
+        return
 
-        kubeseal.seal(secret_name=secret_params["name"])
+    create_new_secret(kubeseal=kubeseal)
 
 
 if __name__ == "__main__":
