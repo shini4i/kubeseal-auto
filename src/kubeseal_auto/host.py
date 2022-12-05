@@ -8,9 +8,7 @@ from icecream import ic
 
 class Host:
     def __init__(self):
-        self.base_url = (
-            "https://github.com/bitnami-labs/sealed-secrets/releases/download"
-        )
+        self.base_url = "https://github.com/bitnami-labs/sealed-secrets/releases/download"
         self.bin_location = f"{os.path.expanduser('~')}/bin"
         self.cpu_type = self._get_cpu_type()
         self.system = self._get_system_type()
@@ -57,9 +55,7 @@ class Host:
                 f.write(r.content)
 
         os.system(f"tar -xvf {local_path} -C {self.bin_location} kubeseal")
-        os.rename(
-            f"{self.bin_location}/kubeseal", f"{self.bin_location}/kubeseal-{version}"
-        )
+        os.rename(f"{self.bin_location}/kubeseal", f"{self.bin_location}/kubeseal-{version}")
         os.remove(local_path)
 
     def ensure_kubeseal_binary(self, version: str):

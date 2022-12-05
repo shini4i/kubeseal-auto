@@ -19,14 +19,10 @@ class Cluster:
         contexts, current_context = config.list_kube_config_contexts()
         if select_context:
             contexts = [context["name"] for context in contexts]
-            context = questionary.select(
-                "Select context to work with", choices=contexts
-            ).ask()
+            context = questionary.select("Select context to work with", choices=contexts).ask()
         else:
             context = current_context["name"]
-        click.echo(
-            f"===> Working with [{Fore.CYAN}{context}{Fore.RESET}] cluster"
-        )
+        click.echo(f"===> Working with [{Fore.CYAN}{context}{Fore.RESET}] cluster")
         return context
 
     @staticmethod
@@ -45,11 +41,7 @@ class Cluster:
 
         expected_label = "app.kubernetes.io/instance"
 
-        for deployment in (
-            client.AppsV1Api()
-            .list_deployment_for_all_namespaces(label_selector=expected_label)
-            .items
-        ):
+        for deployment in client.AppsV1Api().list_deployment_for_all_namespaces(label_selector=expected_label).items:
             if "sealed-secrets" in deployment.metadata.labels[expected_label]:
                 name = deployment.metadata.labels[expected_label]
                 namespace = deployment.metadata.namespace
@@ -74,21 +66,11 @@ class Cluster:
         exit(1)
 
     def find_latest_sealed_secrets_controller_certificate(self) -> str:
-        res = client.CoreV1Api().list_namespaced_secret(
-            self.controller.get("namespace")
-        )
+        res = client.CoreV1Api().list_namespaced_secret(self.controller.get("namespace"))
         secrets = []
         for secret in res.items:
-            if (
-                "sealed-secrets" in secret.metadata.name
-                and secret.type == "kubernetes.io/tls"
-            ):
-                secrets.append(
-                    {
-                        "name": secret.metadata.name,
-                        "timestamp": secret.metadata.creation_timestamp,
-                    }
-                )
+            if "sealed-secrets" in secret.metadata.name and secret.type == "kubernetes.io/tls":
+                secrets.append({"name": secret.metadata.name, "timestamp": secret.metadata.creation_timestamp})
 
         ic(secrets)
 

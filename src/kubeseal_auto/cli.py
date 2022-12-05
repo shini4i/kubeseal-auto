@@ -37,40 +37,14 @@ def edit_secret(kubeseal: Kubeseal, file: str):
 
 
 @click.command(help="Automate the process of sealing secrets for Kubernetes")
-@click.option(
-    "--version", "-v", required=False, is_flag=True, help="print version"
-)
-@click.option(
-    "--debug", required=False, is_flag=True, help="print debug information"
-)
-@click.option(
-    "--select",
-    required=False,
-    is_flag=True,
-    default=False,
-    help="prompt for context select",
-)
-@click.option(
-    "--fetch",
-    required=False,
-    is_flag=True,
-    help="download kubeseal encryption cert",
-)
-@click.option(
-    "--cert", "-c", required=False, help="certificate to seal secret with"
-)
-@click.option(
-    "--edit", "-e", required=False, help="SealedSecrets file to edit"
-)
-@click.option(
-    "--reencrypt", required=False, help="path to directory with sealed secrets"
-)
-@click.option(
-    "--backup",
-    required=False,
-    is_flag=True,
-    help="backups controllers encryption secret",
-)
+@click.option("--version", "-v", required=False, is_flag=True, help="print version")
+@click.option("--debug", required=False, is_flag=True, help="print debug information")
+@click.option("--select", required=False, is_flag=True, default=False, help="prompt for context select")
+@click.option("--fetch", required=False, is_flag=True, help="download kubeseal encryption cert")
+@click.option("--cert", "-c", required=False, help="certificate to seal secret with")
+@click.option("--edit", "-e", required=False, help="SealedSecrets file to edit")
+@click.option("--reencrypt", required=False, help="path to directory with sealed secrets")
+@click.option("--backup", required=False, is_flag=True, help="backups controllers encryption secret")
 def cli(debug, select, fetch, cert, edit, reencrypt, backup, version):
     if not debug:
         ic.disable()

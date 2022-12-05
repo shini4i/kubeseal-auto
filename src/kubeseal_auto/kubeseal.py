@@ -53,18 +53,12 @@ class Kubeseal:
 
     def collect_parameters(self) -> dict:
         if self.detached_mode:
-            namespace = questionary.text(
-                "Provide namespace for the new secret"
-            ).unsafe_ask()
+            namespace = questionary.text("Provide namespace for the new secret").unsafe_ask()
         else:
-            namespace = questionary.select(
-                "Select namespace for the new secret",
-                choices=self.namespaces_list,
-            ).unsafe_ask()
-        secret_type = questionary.select(
-            "Select secret type to create",
-            choices=["generic", "tls", "docker-registry"],
-        ).unsafe_ask()
+            namespace = questionary.select("Select namespace for the new secret",
+                                           choices=self.namespaces_list).unsafe_ask()
+        secret_type = questionary.select("Select secret type to create",
+                                         choices=["generic", "tls", "docker-registry"]).unsafe_ask()
         secret_name = questionary.text("Provide name for the new secret").unsafe_ask()
 
         return {"namespace": namespace, "type": secret_type, "name": secret_name}
@@ -76,9 +70,7 @@ class Kubeseal:
             f"[{Fore.CYAN}file{Fore.RESET}] filename"
         )
 
-        secrets = questionary.text(
-            "Secret Entries one per line", multiline=True
-        ).unsafe_ask()
+        secrets = questionary.text("Secret Entries one per line", multiline=True).unsafe_ask()
         ic(secrets)
 
         click.echo("===> Generating a temporary generic secret yaml file")
@@ -193,9 +185,7 @@ class Kubeseal:
         secret = self.parse_existing_secret(filename)
 
         click.echo("===> Appending ArgoCD related annotations")
-        secret["metadata"]["annotations"] = {
-            "argocd.argoproj.io/sync-options": "SkipDryRunOnMissingResource=true"
-        }
+        secret["metadata"]["annotations"] = {"argocd.argoproj.io/sync-options": "SkipDryRunOnMissingResource=true"}
 
         with open(filename, "w") as stream:
             yaml.safe_dump(secret, stream)
@@ -214,9 +204,7 @@ class Kubeseal:
         )
         ic(command)
         subprocess.call(command, shell=True)
-        click.echo(
-            f"===> Saved to {Fore.CYAN}{self.current_context_name}-kubeseal-cert.crt"
-        )
+        click.echo(f"===> Saved to {Fore.CYAN}{self.current_context_name}-kubeseal-cert.crt")
 
     def reencrypt(self, src: str):
         """
