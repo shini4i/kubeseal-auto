@@ -43,9 +43,9 @@ def edit_secret(kubeseal: Kubeseal, file: str):
 @click.option("--fetch", required=False, is_flag=True, help="download kubeseal encryption cert")
 @click.option("--cert", "-c", required=False, help="certificate to seal secret with")
 @click.option("--edit", "-e", required=False, help="SealedSecrets file to edit")
-@click.option("--reencrypt", required=False, help="path to directory with sealed secrets")
+@click.option("--re-encrypt", required=False, help="path to directory with sealed secrets")
 @click.option("--backup", required=False, is_flag=True, help="backups controllers encryption secret")
-def cli(debug, select, fetch, cert, edit, reencrypt, backup, version):
+def cli(debug, select, fetch, cert, edit, re_encrypt, backup, version):
     if not debug:
         ic.disable()
 
@@ -68,8 +68,8 @@ def cli(debug, select, fetch, cert, edit, reencrypt, backup, version):
         kubeseal.backup()
         return
 
-    if reencrypt:
-        kubeseal.reencrypt(src=reencrypt)
+    if re_encrypt:
+        kubeseal.reencrypt(src=re_encrypt)
         return
 
     if edit:

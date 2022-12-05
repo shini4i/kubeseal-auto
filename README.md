@@ -49,7 +49,7 @@ kubeseal-auto --edit secret-name.yaml
 
 To reencrypt all secrets in a directory (not working in a detached mode):
 ```bash
-kubeseal-auto --reencrypt /path/to/directory
+kubeseal-auto --re-encrypt /path/to/directory
 ```
 
 To back up the encryption and decryption keys (not working in a detached mode):

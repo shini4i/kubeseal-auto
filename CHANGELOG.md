@@ -6,7 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-- Made code formatting less pythonic, but more readable.
+- Made code formatting less pythonic, but more readable
+- Changed --reecrypt flag to --re-encrypt
 
 ## [0.4.5] - 2022-09-29
 ### Added
