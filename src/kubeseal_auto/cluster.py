@@ -27,10 +27,9 @@ class Cluster:
 
     @staticmethod
     def get_all_namespaces() -> list:
-        ns_list = []
-
-        for ns in client.CoreV1Api().list_namespace().items:
-            ns_list.append(ns.metadata.name)
+        ns_list = [
+            ns.metadata.name for ns in client.CoreV1Api().list_namespace().items
+        ]
         ic(ns_list)
 
         return ns_list
@@ -67,11 +66,15 @@ class Cluster:
 
     def find_latest_sealed_secrets_controller_certificate(self) -> str:
         res = client.CoreV1Api().list_namespaced_secret(self.controller.get("namespace"))
-        secrets = []
-        for secret in res.items:
-            if "sealed-secrets" in secret.metadata.name and secret.type == "kubernetes.io/tls":
-                secrets.append({"name": secret.metadata.name, "timestamp": secret.metadata.creation_timestamp})
-
+        secrets = [
+            {
+                "name": secret.metadata.name,
+                "timestamp": secret.metadata.creation_timestamp,
+            }
+            for secret in res.items
+            if "sealed-secrets" in secret.metadata.name
+            and secret.type == "kubernetes.io/tls"
+        ]
         ic(secrets)
 
         if secrets:
