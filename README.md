@@ -9,7 +9,7 @@
 ![PyPI](https://img.shields.io/pypi/v/kubeseal-auto?style=plastic)
 ![license](https://img.shields.io/github/license/shini4i/kubeseal-auto?style=plastic)
 
-<img src="https://raw.githubusercontent.com/shini4i/assets/main/src/kubeseal-auto/demo.gif" alt="Showcase" width="620" height="441">
+![demo](https://raw.githubusercontent.com/shini4i/assets/main/src/kubeseal-auto/demo.gif)
 
 </div>
 
@@ -35,7 +35,8 @@ kubeseal-auto --fetch
 # Generate SealedSecret with local certificate
 kubeseal-auto --cert <kubectl-context>-kubeseal-cert.crt
 ```
-> Note: In the detached mode kubeseal-auto will not download the kubeseal binary and will look for it in the system $PATH.
+> **Note**
+In the detached mode kubeseal-auto will not download the kubeseal binary and will look for it in the system $PATH.
 
 To select kubeconfig context:
 ```bash
