@@ -147,9 +147,10 @@ class Kubeseal:
     def parse_existing_secret(secret_name: str):
         try:
             with open(secret_name, "r") as stream:
-                return yaml.safe_load(stream)
-        except ComposerError:
-            click.echo("Only single document yaml files are supported. Skipping.")
+                docs = [doc for doc in yaml.safe_load_all(stream) if doc is not None]
+                if len(docs) > 1:
+                    raise ComposerError("Only single document yaml files are supported")
+                return docs[0]
         except FileNotFoundError:
             click.echo("Provided file does not exists. Aborting.")
             exit(1)
