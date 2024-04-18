@@ -35,8 +35,8 @@ kubeseal-auto --fetch
 # Generate SealedSecret with local certificate
 kubeseal-auto --cert <kubectl-context>-kubeseal-cert.crt
 ```
-> **Note**
-In the detached mode kubeseal-auto will not download the kubeseal binary and will look for it in the system $PATH.
+> [!IMPORTANT]
+> In the detached mode `kubeseal-auto` will not download the `kubeseal` binary and will look for it in the system $PATH.
 
 To select kubeconfig context:
 ```bash
