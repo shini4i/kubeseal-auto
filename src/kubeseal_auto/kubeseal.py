@@ -77,9 +77,10 @@ class Kubeseal:
 
         secret_entries = ""
 
-        for secret in secrets.split():
+        for secret in secrets.splitlines():
             if "=" in secret:
-                secret_entries = f"{secret_entries} --from-literal={secret}"
+                secret = secret.replace('"', '\\"') # this line is needed to preserve quotes in the secret value
+                secret_entries = f"{secret_entries} --from-literal=\"{secret}\""
             else:
                 secret_entries = f"{secret_entries} --from-file={secret}"
 
