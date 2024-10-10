@@ -9,6 +9,14 @@ help: ## Print this help
 run: ## Run the application with enabled debug mode
 	@poetry run kubeseal-auto --debug
 
+.PHONY: test
+test: ## Run the tests
+	@poetry run pytest
+
+.PHONY: test-coverage
+test-coverage: ## Run the tests with coverage
+	@poetry run pytest --cov --junitxml=junit.xml -o junit_family=legacy
+
 .PHONY: build
 build: ## Package the application using poetry
 	@poetry build
