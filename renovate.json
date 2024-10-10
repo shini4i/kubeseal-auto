@@ -7,8 +7,5 @@
       "matchUpdateTypes": ["patch"],
       "groupName": "Patch updates"
     }
-  ],
-  "prConcurrentLimit": 1,
-  "prHourlyLimit": 0,
-  "prCreation": "not-pending"
+  ]
 }
