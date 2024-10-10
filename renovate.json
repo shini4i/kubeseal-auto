@@ -5,7 +5,7 @@
   "packageRules": [
     {
       "matchUpdateTypes": ["patch"],
-      "groupName": "Patch updates"
+      "groupName": "Patch versions"
     }
   ]
 }
