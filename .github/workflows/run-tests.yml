@@ -39,7 +39,9 @@ jobs:
         run: |
           pytest --cov --junitxml=junit.xml -o junit_family=legacy
 
-      - name: Upload test results to Codecov
-        uses: codecov/test-results-action@v1
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+          token: ${{ env.CODECOV_TOKEN }}
+          files: junit.xml
