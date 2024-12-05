@@ -38,6 +38,7 @@ jobs:
       - name: Run Pytest
         run: |
           pwd
+          tree
           pytest --cov=src --cov-report=term-missing --junitxml=junit.xml -o junit_family=legacy
 
       - name: Upload coverage reports to Codecov
