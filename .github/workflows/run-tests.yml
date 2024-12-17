@@ -36,14 +36,11 @@ jobs:
           pip install pytest pytest-cov
 
       - name: Run Pytest
-        run: |
-          pwd
-          tree
-          pytest --cov=src --cov-report=term-missing --junitxml=junit.xml -o junit_family=legacy
+        run: pytest --cov=src --cov-report=term-missing --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: junit.xml
+          files: coverage.xml
