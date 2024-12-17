@@ -19,7 +19,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.12'
 
       - name: Install Poetry
         uses: snok/install-poetry@v1
@@ -36,8 +36,7 @@ jobs:
           pip install pytest pytest-cov
 
       - name: Run Pytest
-        run: |
-          pytest --cov --junitxml=junit.xml -o junit_family=legacy
+        run: PYTHONPATH=src make test-coverage
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5

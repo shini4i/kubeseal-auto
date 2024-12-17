@@ -15,7 +15,7 @@ test: ## Run the tests
 
 .PHONY: test-coverage
 test-coverage: ## Run the tests with coverage
-	@poetry run pytest --cov --junitxml=junit.xml -o junit_family=legacy
+	@poetry run pytest --cov=src --cov-report=term-missing --junitxml=junit.xml -o junit_family=legacy
 
 .PHONY: build
 build: ## Package the application using poetry
