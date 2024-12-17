@@ -4,8 +4,8 @@
 
 <b>kubeseal-auto</b> is an interactive wrapper for kubeseal binary used to encrypt secrets for [sealed-secrets](https://github.com/bitnami-labs/sealed-secrets).
 
-![GitHub Actions](https://img.shields.io/github/actions/workflow/status/shini4i/kubeseal-auto/run-tests.yml?branch=main)
-[![codecov](https://codecov.io/gh/shini4i/kubeseal-auto/graph/badge.svg?token=E61B6OYPFX)](https://codecov.io/gh/shini4i/kubeseal-auto)
+![GitHub Actions](https://img.shields.io/github/actions/workflow/status/shini4i/kubeseal-auto/run-tests.yml?branch=main&style=plastic)
+![codecov](https://img.shields.io/codecov/c/github/shini4i/kubeseal-auto?style=plastic&token=E61B6OYPFX)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/kubeseal-auto?style=plastic)
 ![PyPI](https://img.shields.io/pypi/v/kubeseal-auto?style=plastic)
 ![license](https://img.shields.io/github/license/shini4i/kubeseal-auto?style=plastic)
