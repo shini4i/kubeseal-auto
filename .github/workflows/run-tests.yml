@@ -36,7 +36,7 @@ jobs:
           pip install pytest pytest-cov
 
       - name: Run Pytest
-        run: make test-coverage && tree
+        run: PYTHONPATH=src make test-coverage && tree
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
