@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Fixed
 - SealedSecret annotations are now preserved while updating argocd.argoproj.io/sync-options
+### Changed
+- SealedSecrets controller service detection logic
 
 ## [0.5.0] - 2024-09-20
 ### Fixed

@@ -37,33 +37,43 @@ class Cluster:
 
     @staticmethod
     def _find_sealed_secrets_controller() -> dict:
-        click.echo("===> Searching for SealedSecrets controller")
+        click.echo("===> Searching for SealedSecrets controller service...")
+        
+        core_v1_api = client.CoreV1Api()
+        all_services = core_v1_api.list_service_for_all_namespaces().items
+        
+        # Find services that match our criteria
+        found_services = []
+        for svc in all_services:
+            if (svc.metadata.labels and 
+                "sealed-secrets" in svc.metadata.labels.get("app.kubernetes.io/name", "") and
+                "metrics" not in svc.metadata.name):
+                found_services.append(svc)
+        
+        if not found_services:
+            click.echo("===> No controller found")
+            raise RuntimeError("SealedSecrets controller not found")
+        
+        service = found_services[0]
+        version = service.metadata.labels.get("app.kubernetes.io/version")
+        
+        if len(found_services) > 1:
+            click.echo(
+                f"{Fore.YELLOW}===> Warning: Multiple services found. Using '{service.metadata.name}' in '{service.metadata.namespace}'.{Fore.RESET}"
+            )
+        
+        click.echo(
+            "===> Found the following controller: "
+            f"[{Fore.CYAN}{service.metadata.namespace}/{service.metadata.name}{Fore.RESET}]\n"
+            "===> Controller version: "
+            f"[{Fore.CYAN}{version}{Fore.RESET}]"
+        )
 
-        expected_label = "app.kubernetes.io/instance"
-
-        for deployment in client.AppsV1Api().list_deployment_for_all_namespaces(label_selector=expected_label).items:
-            if "sealed-secrets" in deployment.metadata.labels[expected_label]:
-                name = deployment.metadata.labels[expected_label]
-                namespace = deployment.metadata.namespace
-                version = deployment.metadata.labels[
-                    "app.kubernetes.io/version"
-                ]
-
-                click.echo(
-                    "===> Found the following controller: "
-                    f"[{Fore.CYAN}{namespace}/{name}{Fore.RESET}]\n"
-                    "===> Controller version: "
-                    f"[{Fore.CYAN}{version}{Fore.RESET}]"
-                )
-
-                return {
-                    "name": name,
-                    "namespace": namespace,
-                    "version": version,
-                }
-
-        click.echo("===> No controller found")
-        exit(1)
+        return {
+            "name": service.metadata.name,
+            "namespace": service.metadata.namespace,
+            "version": version,
+        }
 
     def find_latest_sealed_secrets_controller_certificate(self) -> str:
         res = client.CoreV1Api().list_namespaced_secret(self.controller.get("namespace"))
