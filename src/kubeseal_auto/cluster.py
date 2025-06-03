@@ -40,19 +40,17 @@ class Cluster:
         click.echo("===> Searching for SealedSecrets controller service...")
         
         core_v1_api = client.CoreV1Api()
-        all_services = core_v1_api.list_service_for_all_namespaces().items
+
+        found_services = core_v1_api.list_service_for_all_namespaces(
+            label_selector="app.kubernetes.io/name=sealed-secrets"
+        ).items
         
-        # Find services that match our criteria
-        found_services = []
-        for svc in all_services:
-            if (svc.metadata.labels and 
-                "sealed-secrets" in svc.metadata.labels.get("app.kubernetes.io/name", "") and
-                "metrics" not in svc.metadata.name):
-                found_services.append(svc)
+        # Further filter out metrics services
+        found_services = [svc for svc in found_services if "metrics" not in svc.metadata.name]
         
         if not found_services:
             click.echo("===> No controller found")
-            raise RuntimeError("SealedSecrets controller not found")
+            raise click.ClickException("SealedSecrets controller not found")
         
         service = found_services[0]
         version = service.metadata.labels.get("app.kubernetes.io/version")
