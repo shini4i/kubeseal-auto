@@ -185,9 +185,27 @@ class Kubeseal:
              filename: the filename of the resulting yaml file
         """
         secret = self.parse_existing_secret(filename)
-
         click.echo("===> Appending ArgoCD related annotations")
-        secret["metadata"]["annotations"] = {"argocd.argoproj.io/sync-options": "SkipDryRunOnMissingResource=true"}
+
+        annotations = secret["metadata"].setdefault("annotations", {})
+        
+        sync_key = "argocd.argoproj.io/sync-options"
+        skip_option_value = "SkipDryRunOnMissingResource=true"
+        
+        current_sync_options_str = annotations.get(sync_key, "")
+        
+        # Split, strip whitespace from each option, and filter out any empty strings
+        # that might arise from consecutive commas or leading/trailing commas.
+        options_list = [opt.strip() for opt in current_sync_options_str.split(',') if opt.strip()]
+        
+        # Filter out any pre-existing "SkipDryRunOnMissingResource=" option
+        # to ensure we don't duplicate it or have conflicting values.
+        filtered_options = [opt for opt in options_list if not opt.startswith("SkipDryRunOnMissingResource=")]
+        
+        # Add the desired option to the beginning of the list.
+        final_options = [skip_option_value] + filtered_options
+        
+        annotations[sync_key] = ",".join(final_options)
 
         with open(filename, "w") as stream:
             yaml.safe_dump(secret, stream)
