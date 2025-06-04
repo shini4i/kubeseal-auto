@@ -38,28 +38,29 @@ class Cluster:
     @staticmethod
     def _find_sealed_secrets_controller() -> dict:
         click.echo("===> Searching for SealedSecrets controller service...")
-        
+
         core_v1_api = client.CoreV1Api()
 
         found_services = core_v1_api.list_service_for_all_namespaces(
             label_selector="app.kubernetes.io/name=sealed-secrets"
         ).items
-        
+
         # Further filter out metrics services
         found_services = [svc for svc in found_services if "metrics" not in svc.metadata.name]
-        
+
         if not found_services:
             click.echo("===> No controller found")
             raise click.ClickException("SealedSecrets controller not found")
-        
+
         service = found_services[0]
         version = service.metadata.labels.get("app.kubernetes.io/version")
-        
+
         if len(found_services) > 1:
             click.echo(
-                f"{Fore.YELLOW}===> Warning: Multiple services found. Using '{service.metadata.name}' in '{service.metadata.namespace}'.{Fore.RESET}"
+                f"===> Warning: Multiple services found. Using [{Fore.YELLOW}{service.metadata.name}{Fore.RESET}] "
+                f"in [{Fore.YELLOW}{service.metadata.namespace}{Fore.RESET}]."
             )
-        
+
         click.echo(
             "===> Found the following controller: "
             f"[{Fore.CYAN}{service.metadata.namespace}/{service.metadata.name}{Fore.RESET}]\n"
