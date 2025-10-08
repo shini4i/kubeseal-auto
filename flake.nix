@@ -32,7 +32,7 @@
       in
       {
         packages = {
-          kubeseal-auto = python.pkgs.buildPythonApplication {
+          kubeseal-auto = pkgs.poetry-to-nix.buildPoetryApplication {
             pname = "kubeseal-auto";
             version = "0.6.0";
             src = self;
@@ -58,7 +58,7 @@
               description = "An interactive wrapper for kubeseal binary";
               homepage = "https://github.com/shini4i/kubeseal-auto";
               license = licenses.mit;
-              maintainers = with maintainers; [ ];
+              maintainers = with maintainers; [ { name = "shini4i"; email = "github@shini4i.dev"; github = "shini4i"; } ];
             };
           };
 
