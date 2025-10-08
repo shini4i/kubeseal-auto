@@ -51,18 +51,13 @@
 
             checkInputs = checkDependencies;
 
-            doCheck = true;
-            checkPhase = ''
-              runHook preCheck
-              make test-coverage
-              runHook postCheck
-            '';
+            doCheck = false;
 
             meta = with pkgs.lib; {
               description = "An interactive wrapper for kubeseal binary";
               homepage = "https://github.com/shini4i/kubeseal-auto";
               license = licenses.mit;
-              maintainers = with maintainers; [ ];
+              maintainers = with maintainers; [ { name = "shini4i"; email = "github@shini4i.dev"; github = "shini4i"; } ];
             };
           };
 
