@@ -26,13 +26,13 @@
           pytest
           pytest-cov
         ];
-        
+
         allPythonPackages = pythonDependencies ++ checkDependencies;
 
       in
       {
         packages = {
-          kubeseal-auto = python.pkgs.buildPythonPoetryApplication {
+          kubeseal-auto = python.pkgs.buildPythonPackage {
             pname = "kubeseal-auto";
             version = "0.6.0";
             src = self;
@@ -40,8 +40,10 @@
             nativeBuildInputs = [
               python.pkgs.poetry-core
             ];
+            
+            propagatedBuildInputs = pythonDependencies;
 
-            propagatedBuildInputs = pythonDependencies ++ [
+            buildInputs = [
               pkgs.kubectl
             ];
 
@@ -58,7 +60,7 @@
               description = "An interactive wrapper for kubeseal binary";
               homepage = "https://github.com/shini4i/kubeseal-auto";
               license = licenses.mit;
-              maintainers = with maintainers; [ { name = "shini4i"; email = "github@shini4i.dev"; github = "shini4i"; } ];
+              maintainers = with maintainers; [ ];
             };
           };
 
@@ -69,12 +71,8 @@
           nativeBuildInputs = with pkgs; [
             poetry
             pre-commit
-
-            (python.withPackages (ps: allPythonPackages))
-          ];
-
-          buildInputs = with pkgs; [
             kubectl
+            (python.withPackages (ps: allPythonPackages))
           ];
         };
 
