@@ -37,10 +37,12 @@
             version = "0.6.0";
             src = self;
 
-            nativeBuildInputs = [
-              python.pkgs.poetry-core
+            format = "pyproject";
+
+            nativeBuildInputs = with python.pkgs; [
+              poetry-core
             ];
-            
+
             propagatedBuildInputs = pythonDependencies;
 
             buildInputs = [
