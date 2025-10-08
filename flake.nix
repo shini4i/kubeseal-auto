@@ -4,72 +4,38 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    poetry2nix = {
+      url = "github:nix-community/poetry2nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, flake-utils, poetry2nix }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
-        python = pkgs.python313;
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ poetry2nix.overlays.default ];
+        };
 
-        pythonDependencies = with python.pkgs; [
-          pyyaml
-          requests
-          kubernetes
-          click
-          icecream
-          questionary
-          colorama
-        ];
-
-        checkDependencies = with python.pkgs; [
-          pytest
-          pytest-cov
-        ];
-
-        allPythonPackages = pythonDependencies ++ checkDependencies;
+        kubeseal-auto = pkgs.poetry2nix.mkPoetryApplication {
+          projectDir = ./.;
+          python = pkgs.python312;
+        };
 
       in
       {
         packages = {
-          kubeseal-auto = python.pkgs.buildPythonPackage {
-            pname = "kubeseal-auto";
-            version = "0.6.0";
-            src = self;
-
-            format = "pyproject";
-
-            nativeBuildInputs = with python.pkgs; [
-              poetry-core
-            ];
-
-            propagatedBuildInputs = pythonDependencies;
-
-            buildInputs = [
-              pkgs.kubectl
-            ];
-
-            checkInputs = checkDependencies;
-
-            doCheck = false;
-
-            meta = with pkgs.lib; {
-              description = "An interactive wrapper for kubeseal binary";
-              homepage = "https://github.com/shini4i/kubeseal-auto";
-              license = licenses.mit;
-              maintainers = with maintainers; [ { name = "shini4i"; email = "github@shini4i.dev"; github = "shini4i"; } ];
-            };
-          };
-
+          kubeseal-auto = kubeseal-auto;
           default = self.packages.${system}.kubeseal-auto;
         };
 
         devShells.default = pkgs.mkShell {
-          nativeBuildInputs = with pkgs; [
+          inputsFrom = [ kubeseal-auto ];
+          packages = with pkgs; [
             poetry
             pre-commit
             kubectl
-            (python.withPackages (ps: allPythonPackages))
           ];
         };
 
