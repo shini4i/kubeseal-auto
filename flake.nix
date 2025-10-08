@@ -32,7 +32,7 @@
       in
       {
         packages = {
-          kubeseal-auto = pkgs.poetry-to-nix.buildPoetryApplication {
+          kubeseal-auto = python.pkgs.buildPythonPoetryApplication {
             pname = "kubeseal-auto";
             version = "0.6.0";
             src = self;
