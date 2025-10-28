@@ -40,6 +40,12 @@ class Kubeseal:
 
         self.temp_file = NamedTemporaryFile()
 
+    def _ensure_cluster_operation(self, operation: str):
+        if self.detached_mode:
+            raise click.ClickException(
+                f"{operation} is unavailable in detached mode. Remove --cert to operate against the cluster."
+            )
+
     def _find_sealed_secrets(self, src: str) -> list:
         secrets = []
         for path in Path(src).rglob("*.yaml"):
@@ -215,6 +221,7 @@ class Kubeseal:
         This method downloads a certificate that can be used in the future
         to encrypt secrets without direct access to the cluster
         """
+        self._ensure_cluster_operation("Fetching certificates")
         click.echo("===> Downloading certificate for kubeseal...")
         command = (
             f"kubeseal --controller-namespace {self.controller_namespace} "
@@ -234,6 +241,7 @@ class Kubeseal:
         Parameters:
             src: the directory with SealedSecret files
         """
+        self._ensure_cluster_operation("Re-encrypting secrets")
         for secret in self._find_sealed_secrets(src):
             click.echo(f"Re-encrypting {secret}")
             os.rename(secret, f"{secret}_tmp")
@@ -253,6 +261,7 @@ class Kubeseal:
         """
         This method makes a backup of the latest SealedSecret controllers encryption secret
         """
+        self._ensure_cluster_operation("Backing up controller secrets")
         secret = self.cluster.find_latest_sealed_secrets_controller_certificate()
         command = (
             f"kubectl get secret -n {self.controller_namespace} "

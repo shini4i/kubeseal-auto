@@ -1,5 +1,8 @@
 from unittest.mock import patch, MagicMock, mock_open
 
+import pytest
+import click
+
 from kubeseal_auto.kubeseal import Kubeseal
 
 
@@ -180,3 +183,30 @@ def test_parse_existing_secret_file_not_found(mock_find_controller, mock_list_ku
     with patch('builtins.exit') as mock_exit:
         kubeseal.parse_existing_secret('nonexistent-secret.yaml')
         mock_exit.assert_called_once_with(1)
+
+
+def test_fetch_certificate_raises_in_detached_mode():
+    kubeseal = Kubeseal(select_context=False, certificate="cert.crt")
+
+    with pytest.raises(click.ClickException) as excinfo:
+        kubeseal.fetch_certificate()
+
+    assert "detached mode" in str(excinfo.value).lower()
+
+
+def test_backup_raises_in_detached_mode():
+    kubeseal = Kubeseal(select_context=False, certificate="cert.crt")
+
+    with pytest.raises(click.ClickException) as excinfo:
+        kubeseal.backup()
+
+    assert "detached mode" in str(excinfo.value).lower()
+
+
+def test_reencrypt_raises_in_detached_mode():
+    kubeseal = Kubeseal(select_context=False, certificate="cert.crt")
+
+    with pytest.raises(click.ClickException) as excinfo:
+        kubeseal.reencrypt(src="./secrets")
+
+    assert "detached mode" in str(excinfo.value).lower()

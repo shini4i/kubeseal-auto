@@ -56,6 +56,21 @@ def cli(debug, select, fetch, cert, edit, re_encrypt, backup, version):
     colorama.init(autoreset=True)
 
     if cert:
+        detached_conflicts = []
+        if fetch:
+            detached_conflicts.append("--fetch")
+        if backup:
+            detached_conflicts.append("--backup")
+        if re_encrypt:
+            detached_conflicts.append("--re-encrypt")
+
+        if detached_conflicts:
+            conflict_list = ", ".join(detached_conflicts)
+            raise click.UsageError(
+                "Detached mode (--cert) cannot be combined with "
+                f"{conflict_list}. Remove --cert to access cluster-dependent operations."
+            )
+
         kubeseal = Kubeseal(certificate=cert, select_context=select)
     else:
         kubeseal = Kubeseal(select_context=select)
