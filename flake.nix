@@ -13,20 +13,43 @@
     let
       supportedSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       perSystem = nixpkgs.lib.genAttrs supportedSystems;
+      mkPkgs = system: import nixpkgs {
+        inherit system;
+        overlays = [ poetry2nix.overlays.default ];
+      };
     in
     {
       packages = perSystem (system:
         let
-          pkgs = import nixpkgs {
-            inherit system;
-            overlays = [ poetry2nix.overlays.default ];
-          };
+          pkgs = mkPkgs system;
         in
         {
           default = pkgs.poetry2nix.mkPoetryApplication {
             projectDir = ./.;
             python = pkgs.python312;
-            buildInputs = [ pkgs.kubectl ];
+            buildInputs = [ pkgs.kubectl pkgs.kubeseal ];
+          };
+        });
+
+      devShells = perSystem (system:
+        let
+          pkgs = mkPkgs system;
+          poetryEnv = pkgs.poetry2nix.mkPoetryEnv {
+            projectDir = ./.;
+            python = pkgs.python312;
+          };
+        in
+        {
+          default = pkgs.mkShell {
+            packages = with pkgs; [
+              poetryEnv
+              poetry
+              kubectl
+              kubeseal
+            ];
+            shellHook = ''
+              export POETRY_VIRTUALENVS_IN_PROJECT=true
+            '';
           };
         });
 
