@@ -20,7 +20,7 @@ questionary = "^2.0.1"
 colorama = "^0.4.6"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.3.3"
+pytest = ">=8.3.3,<10.0.0"
 pytest-cov = "^6.0.0"
 
 [build-system]
