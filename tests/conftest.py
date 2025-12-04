@@ -82,7 +82,11 @@ def mock_host_ensure_binary():
 
 @pytest.fixture
 def kubeseal_mocks(mock_kube_contexts, mock_kube_config, mock_controller, mock_namespaces, mock_host_ensure_binary):
-    """Combined fixture for creating a Kubeseal instance without cluster access."""
+    """Combined fixture for creating a Kubeseal instance without cluster access.
+
+    Note: This fixture is used for its side effects (setting up mocks).
+    Tests that use it may not directly reference the returned dict.
+    """
     return {
         "contexts": mock_kube_contexts,
         "config": mock_kube_config,

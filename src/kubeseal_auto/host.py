@@ -75,6 +75,18 @@ class Host:
             case _:
                 raise UnsupportedPlatformError(f"Unsupported operating system: {platform.system()}")
 
+    @staticmethod
+    def _normalize_version(version: str) -> str:
+        """Normalize a version string by removing the 'v' prefix if present.
+
+        Args:
+            version: The version string (e.g., 'v0.26.0' or '0.26.0').
+
+        Returns:
+            The version string without 'v' prefix (e.g., '0.26.0').
+        """
+        return version.split("v")[-1]
+
     def _download_kubeseal_binary(self, version: str) -> None:
         """Download the kubeseal binary for the specified version.
 
@@ -115,8 +127,8 @@ class Host:
         Returns:
             The full path to the kubeseal binary.
         """
-        version = version.split("v")[-1]
-        return f"{self.bin_location}/kubeseal-{version}"
+        normalized = self._normalize_version(version)
+        return f"{self.bin_location}/kubeseal-{normalized}"
 
     def ensure_kubeseal_binary(self, version: str) -> None:
         """Ensure the kubeseal binary for the specified version exists.
@@ -129,8 +141,8 @@ class Host:
         Raises:
             BinaryNotFoundError: If the binary cannot be downloaded.
         """
-        version = version.split("v")[-1]
-        binary_path = self.get_binary_path(version)
+        normalized = self._normalize_version(version)
+        binary_path = self.get_binary_path(normalized)
         if not os.path.exists(binary_path):
             click.echo(f"kubeseal binary not found at {binary_path}")
-            self._download_kubeseal_binary(version)
+            self._download_kubeseal_binary(normalized)

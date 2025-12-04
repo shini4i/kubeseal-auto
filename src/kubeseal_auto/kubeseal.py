@@ -4,6 +4,7 @@ This module provides the Kubeseal class which wraps the kubeseal binary
 to create, seal, and manage Kubernetes sealed secrets.
 """
 
+import contextlib
 import os
 import shutil
 import subprocess
@@ -41,7 +42,7 @@ class Kubeseal:
         controller_namespace: Namespace of the SealedSecrets controller.
         current_context_name: Current Kubernetes context name.
         namespaces_list: List of available namespaces.
-        temp_file: Temporary file for intermediate secret storage.
+        _temp_file_path: Path to temporary file for intermediate secret storage.
     """
 
     def __init__(self, select_context: bool, certificate: str | None = None) -> None:
@@ -79,7 +80,21 @@ class Kubeseal:
             except BinaryNotFoundError:
                 click.echo("==> Falling back to the default kubeseal binary")
 
-        self.temp_file: Any = NamedTemporaryFile()
+        # Create temp file with delete=False for Windows compatibility
+        # Close immediately to avoid file locking issues when reopening
+        temp_file = NamedTemporaryFile(delete=False)
+        self._temp_file_path: str = temp_file.name
+        temp_file.close()
+
+    def __del__(self) -> None:
+        """Clean up temporary file when object is destroyed."""
+        self._cleanup_temp_file()
+
+    def _cleanup_temp_file(self) -> None:
+        """Remove the temporary file if it exists."""
+        if hasattr(self, "_temp_file_path") and os.path.exists(self._temp_file_path):
+            with contextlib.suppress(OSError):
+                os.unlink(self._temp_file_path)
 
     def _find_sealed_secrets(self, src: str) -> list[Path]:
         """Find all SealedSecret files in a directory.
@@ -164,7 +179,7 @@ class Kubeseal:
 
         ic(cmd)
 
-        with open(self.temp_file.name, "w") as f:
+        with open(self._temp_file_path, "w") as f:
             subprocess.run(cmd, stdout=f, check=True)
 
     def create_tls_secret(self, secret_params: dict[str, str]) -> None:
@@ -194,7 +209,7 @@ class Kubeseal:
         ]
         ic(cmd)
 
-        with open(self.temp_file.name, "w") as f:
+        with open(self._temp_file_path, "w") as f:
             subprocess.run(cmd, stdout=f, check=True)
 
     def create_regcred_secret(self, secret_params: dict[str, str]) -> None:
@@ -228,7 +243,7 @@ class Kubeseal:
         ]
         # Don't log cmd as it contains sensitive docker credentials
 
-        with open(self.temp_file.name, "w") as f:
+        with open(self._temp_file_path, "w") as f:
             subprocess.run(cmd, stdout=f, check=True)
 
     def seal(self, secret_name: str) -> None:
@@ -253,7 +268,7 @@ class Kubeseal:
         ic(cmd)
 
         output_file = f"{secret_name}.yaml"
-        with open(self.temp_file.name) as stdin_f, open(output_file, "w") as stdout_f:
+        with open(self._temp_file_path) as stdin_f, open(output_file, "w") as stdout_f:
             subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, check=True)
 
         self.append_argo_annotation(filename=output_file)
@@ -307,7 +322,7 @@ class Kubeseal:
             ]
         ic(cmd)
 
-        with open(self.temp_file.name) as stdin_f:
+        with open(self._temp_file_path) as stdin_f:
             subprocess.run(cmd, stdin=stdin_f, check=True)
 
         self.append_argo_annotation(filename=secret_name)

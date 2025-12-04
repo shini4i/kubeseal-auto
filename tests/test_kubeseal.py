@@ -11,7 +11,7 @@ from kubeseal_auto.kubeseal import Kubeseal
 class TestKubesealSecretCreation:
     """Tests for secret creation methods."""
 
-    def test_create_generic_secret(self, kubeseal_mocks, mock_subprocess):
+    def test_create_generic_secret(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a generic secret with key-value pairs."""
         kubeseal = Kubeseal(select_context=False)
         secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
@@ -36,7 +36,7 @@ class TestKubesealSecretCreation:
             assert "--from-literal=key1=value1" in cmd
             assert "--from-literal=key2=value2" in cmd
 
-    def test_create_generic_secret_with_file(self, kubeseal_mocks, mock_subprocess):
+    def test_create_generic_secret_with_file(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a generic secret from file."""
         kubeseal = Kubeseal(select_context=False)
         secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
@@ -53,7 +53,7 @@ class TestKubesealSecretCreation:
             cmd = mock_subprocess.call_args[0][0]
             assert "--from-file=config.json" in cmd
 
-    def test_create_tls_secret(self, kubeseal_mocks, mock_subprocess):
+    def test_create_tls_secret(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a TLS secret."""
         kubeseal = Kubeseal(select_context=False)
         secret_params = {"name": "test-tls-secret", "namespace": "default", "type": "tls"}
@@ -78,7 +78,7 @@ class TestKubesealSecretCreation:
             assert "-o" in cmd
             assert "yaml" in cmd
 
-    def test_create_regcred_secret(self, kubeseal_mocks, mock_subprocess):
+    def test_create_regcred_secret(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a docker-registry secret."""
         kubeseal = Kubeseal(select_context=False)
         secret_params = {"name": "test-regcred-secret", "namespace": "default", "type": "docker-registry"}
@@ -120,7 +120,7 @@ class TestKubesealSecretCreation:
 class TestKubesealSealing:
     """Tests for secret sealing methods."""
 
-    def test_seal(self, kubeseal_mocks, mock_subprocess):
+    def test_seal(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test sealing a secret."""
         kubeseal = Kubeseal(select_context=False)
         secret_name = "test-secret"
@@ -152,7 +152,7 @@ class TestKubesealSealing:
             cmd = mock_subprocess.call_args[0][0]
             assert "--cert=test-cert.crt" in cmd
 
-    def test_merge(self, kubeseal_mocks, mock_subprocess, sample_secret_yaml):
+    def test_merge(self, kubeseal_mocks, mock_subprocess, sample_secret_yaml):  # noqa: ARG002
         """Test merging secrets into an existing sealed secret."""
         kubeseal = Kubeseal(select_context=False)
         secret_name = "existing-secret.yaml"
@@ -169,7 +169,7 @@ class TestKubesealSealing:
 class TestKubesealParsing:
     """Tests for secret parsing methods."""
 
-    def test_parse_existing_secret_success(self, kubeseal_mocks, sample_secret_yaml):
+    def test_parse_existing_secret_success(self, kubeseal_mocks, sample_secret_yaml):  # noqa: ARG002
         """Test successfully parsing an existing secret."""
         kubeseal = Kubeseal(select_context=False)
 
@@ -180,7 +180,7 @@ class TestKubesealParsing:
             assert secret["metadata"]["name"] == "test-secret"
             assert secret["metadata"]["namespace"] == "default"
 
-    def test_parse_existing_secret_file_not_found(self, kubeseal_mocks):
+    def test_parse_existing_secret_file_not_found(self, kubeseal_mocks):  # noqa: ARG002
         """Test parsing a non-existent secret file."""
         kubeseal = Kubeseal(select_context=False)
 
@@ -189,7 +189,7 @@ class TestKubesealParsing:
 
         assert "does not exist" in str(exc_info.value)
 
-    def test_parse_existing_secret_multi_document(self, kubeseal_mocks):
+    def test_parse_existing_secret_multi_document(self, kubeseal_mocks):  # noqa: ARG002
         """Test parsing a multi-document YAML file raises error."""
         kubeseal = Kubeseal(select_context=False)
         multi_doc_yaml = "---\napiVersion: v1\nkind: Secret\n---\napiVersion: v1\nkind: Secret\n"
@@ -202,7 +202,7 @@ class TestKubesealParsing:
 
         assert "multiple YAML documents" in str(exc_info.value)
 
-    def test_parse_existing_secret_empty_file(self, kubeseal_mocks):
+    def test_parse_existing_secret_empty_file(self, kubeseal_mocks):  # noqa: ARG002
         """Test parsing an empty file returns None."""
         kubeseal = Kubeseal(select_context=False)
 
@@ -211,7 +211,7 @@ class TestKubesealParsing:
 
         assert result is None
 
-    def test_parse_existing_secret_malformed_yaml(self, kubeseal_mocks):
+    def test_parse_existing_secret_malformed_yaml(self, kubeseal_mocks):  # noqa: ARG002
         """Test parsing malformed YAML raises SecretParsingError."""
         kubeseal = Kubeseal(select_context=False)
         malformed_yaml = "apiVersion: v1\nkind: Secret\nmetadata: [:"
@@ -236,7 +236,7 @@ class TestKubesealDetachedMode:
         assert kubeseal.certificate == "test-cert.crt"
         assert kubeseal.binary == "kubeseal"
 
-    def test_init_connected_mode(self, kubeseal_mocks):
+    def test_init_connected_mode(self, kubeseal_mocks):  # noqa: ARG002
         """Test initializing Kubeseal in connected mode."""
         kubeseal = Kubeseal(select_context=False)
 
@@ -248,7 +248,7 @@ class TestKubesealDetachedMode:
 class TestKubesealCollectParameters:
     """Tests for parameter collection."""
 
-    def test_collect_parameters_connected_mode(self, kubeseal_mocks):
+    def test_collect_parameters_connected_mode(self, kubeseal_mocks):  # noqa: ARG002
         """Test collecting parameters in connected mode."""
         kubeseal = Kubeseal(select_context=False)
 
