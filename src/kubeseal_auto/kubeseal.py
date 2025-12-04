@@ -5,6 +5,7 @@ to create, seal, and manage Kubernetes sealed secrets.
 """
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -379,8 +380,6 @@ class Kubeseal:
             output_tmp = f"{secret}_new"
 
             # Create backup of original file
-            import shutil
-
             shutil.copy2(secret, backup_file)
 
             cmd: list[str] = [
