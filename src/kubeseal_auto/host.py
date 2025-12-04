@@ -6,7 +6,7 @@ downloads and platform detection.
 
 import os
 import platform
-import subprocess
+import tarfile
 
 import click
 import requests
@@ -114,8 +114,14 @@ class Host:
             with open(local_path, "wb") as f:
                 f.write(r.content)
 
-        subprocess.run(["tar", "-xvf", local_path, "-C", self.bin_location, "kubeseal"], check=True)
-        os.rename(f"{self.bin_location}/kubeseal", f"{self.bin_location}/kubeseal-{version}")
+        with tarfile.open(local_path, "r:gz") as tar:
+            # Extract only the kubeseal binary, filtering for security
+            for member in tar.getmembers():
+                if member.name == "kubeseal" and member.isfile():
+                    member.name = f"kubeseal-{version}"
+                    tar.extract(member, path=self.bin_location)
+                    break
+
         os.remove(local_path)
 
     def get_binary_path(self, version: str) -> str:

@@ -63,6 +63,8 @@ class TestCliDetachedMode:
             patch("kubeseal_auto.cli.create_new_secret"),
         ):
             mock_instance = MagicMock()
+            mock_instance.__enter__ = MagicMock(return_value=mock_instance)
+            mock_instance.__exit__ = MagicMock(return_value=False)
             mock_kubeseal.return_value = mock_instance
 
             result = runner.invoke(cli, ["--cert", "test-cert.crt"])
@@ -80,6 +82,8 @@ class TestCliFetch:
 
         with patch("kubeseal_auto.cli.Kubeseal") as mock_kubeseal:
             mock_instance = MagicMock()
+            mock_instance.__enter__ = MagicMock(return_value=mock_instance)
+            mock_instance.__exit__ = MagicMock(return_value=False)
             mock_kubeseal.return_value = mock_instance
 
             result = runner.invoke(cli, ["--fetch"])
@@ -97,6 +101,8 @@ class TestCliBackup:
 
         with patch("kubeseal_auto.cli.Kubeseal") as mock_kubeseal:
             mock_instance = MagicMock()
+            mock_instance.__enter__ = MagicMock(return_value=mock_instance)
+            mock_instance.__exit__ = MagicMock(return_value=False)
             mock_kubeseal.return_value = mock_instance
 
             result = runner.invoke(cli, ["--backup"])
@@ -114,6 +120,8 @@ class TestCliReencrypt:
 
         with patch("kubeseal_auto.cli.Kubeseal") as mock_kubeseal:
             mock_instance = MagicMock()
+            mock_instance.__enter__ = MagicMock(return_value=mock_instance)
+            mock_instance.__exit__ = MagicMock(return_value=False)
             mock_kubeseal.return_value = mock_instance
 
             result = runner.invoke(cli, ["--re-encrypt", "/path/to/secrets"])
@@ -134,6 +142,8 @@ class TestCliEdit:
             patch("kubeseal_auto.cli.edit_secret") as mock_edit,
         ):
             mock_instance = MagicMock()
+            mock_instance.__enter__ = MagicMock(return_value=mock_instance)
+            mock_instance.__exit__ = MagicMock(return_value=False)
             mock_kubeseal.return_value = mock_instance
 
             result = runner.invoke(cli, ["--edit", "secret.yaml"])
@@ -155,6 +165,8 @@ class TestCliDebug:
             patch("kubeseal_auto.cli.ic") as mock_ic,
         ):
             mock_instance = MagicMock()
+            mock_instance.__enter__ = MagicMock(return_value=mock_instance)
+            mock_instance.__exit__ = MagicMock(return_value=False)
             mock_kubeseal.return_value = mock_instance
 
             result = runner.invoke(cli, ["--debug"])
@@ -258,9 +270,11 @@ class TestCliSelect:
             patch("kubeseal_auto.cli.create_new_secret"),
         ):
             mock_instance = MagicMock()
+            mock_instance.__enter__ = MagicMock(return_value=mock_instance)
+            mock_instance.__exit__ = MagicMock(return_value=False)
             mock_kubeseal.return_value = mock_instance
 
             result = runner.invoke(cli, ["--select"])
 
             assert result.exit_code == 0
-            mock_kubeseal.assert_called_once_with(select_context=True)
+            mock_kubeseal.assert_called_once_with(certificate=None, select_context=True)

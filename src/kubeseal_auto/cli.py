@@ -108,28 +108,24 @@ def cli(
 
     colorama.init(autoreset=True)
 
-    if cert:
-        kubeseal = Kubeseal(certificate=cert, select_context=select)
-    else:
-        kubeseal = Kubeseal(select_context=select)
+    with Kubeseal(certificate=cert, select_context=select) as kubeseal:
+        if fetch:
+            kubeseal.fetch_certificate()
+            return
 
-    if fetch:
-        kubeseal.fetch_certificate()
-        return
+        if backup:
+            kubeseal.backup()
+            return
 
-    if backup:
-        kubeseal.backup()
-        return
+        if re_encrypt:
+            kubeseal.reencrypt(src=re_encrypt)
+            return
 
-    if re_encrypt:
-        kubeseal.reencrypt(src=re_encrypt)
-        return
+        if edit:
+            edit_secret(kubeseal=kubeseal, file=edit)
+            return
 
-    if edit:
-        edit_secret(kubeseal=kubeseal, file=edit)
-        return
-
-    create_new_secret(kubeseal=kubeseal)
+        create_new_secret(kubeseal=kubeseal)
 
 
 if __name__ == "__main__":

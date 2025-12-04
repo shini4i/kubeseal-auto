@@ -78,7 +78,14 @@ class Kubeseal:
                 self.cluster.ensure_kubeseal_version(version)
                 self.binary = self.cluster.get_kubeseal_binary_path(version)
             except BinaryNotFoundError:
+                system_binary = shutil.which("kubeseal")
+                if system_binary is None:
+                    raise BinaryNotFoundError(
+                        "kubeseal binary not found. Please install kubeseal or ensure it's in your PATH. "
+                        "See: https://github.com/bitnami-labs/sealed-secrets#installation"
+                    ) from None
                 click.echo("==> Falling back to the default kubeseal binary")
+                self.binary = system_binary
 
         # Create temp file with delete=False for Windows compatibility
         # Close immediately to avoid file locking issues when reopening
@@ -86,8 +93,22 @@ class Kubeseal:
         self._temp_file_path: str = temp_file.name
         temp_file.close()
 
-    def __del__(self) -> None:
-        """Clean up temporary file when object is destroyed."""
+    def __enter__(self) -> "Kubeseal":
+        """Enter context manager.
+
+        Returns:
+            The Kubeseal instance.
+        """
+        return self
+
+    def __exit__(self, exc_type: type | None, exc_val: Exception | None, exc_tb: object) -> None:
+        """Exit context manager and clean up resources.
+
+        Args:
+            exc_type: Exception type if an exception was raised.
+            exc_val: Exception value if an exception was raised.
+            exc_tb: Exception traceback if an exception was raised.
+        """
         self._cleanup_temp_file()
 
     def _cleanup_temp_file(self) -> None:

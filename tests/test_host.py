@@ -136,17 +136,24 @@ class TestHostBinaryManagement:
             mock_response.__exit__ = MagicMock(return_value=False)
 
             with (
-                patch("requests.get", return_value=mock_response),
-                patch("builtins.open", MagicMock()),
-                patch("subprocess.run") as mock_run,
-            ):
-                host._download_kubeseal_binary("0.26.0")
+                    patch("requests.get", return_value=mock_response),
+                    patch("builtins.open", MagicMock()),
+                    patch("tarfile.open") as mock_tarfile,
+                ):
+                    mock_tar = MagicMock()
+                    mock_member = MagicMock()
+                    mock_member.name = "kubeseal"
+                    mock_member.isfile.return_value = True
+                    mock_tar.getmembers.return_value = [mock_member]
+                    mock_tar.__enter__ = MagicMock(return_value=mock_tar)
+                    mock_tar.__exit__ = MagicMock(return_value=False)
+                    mock_tarfile.return_value = mock_tar
 
-                # Verify tar extraction was called
-                mock_run.assert_called_once()
-                cmd = mock_run.call_args[0][0]
-                assert "tar" in cmd
-                assert "-xvf" in cmd
+                    host._download_kubeseal_binary("0.26.0")
+
+                    # Verify tarfile extraction was called
+                    mock_tarfile.assert_called_once()
+                    mock_tar.extract.assert_called_once()
 
     def test_download_kubeseal_binary_version_not_found(self):
         """Test error when version is not available."""
@@ -195,7 +202,16 @@ class TestHostBinaryManagement:
                 with (
                     patch("requests.get", return_value=mock_response),
                     patch("builtins.open", MagicMock()),
-                    patch("subprocess.run"),
+                    patch("tarfile.open") as mock_tarfile,
                 ):
+                    mock_tar = MagicMock()
+                    mock_member = MagicMock()
+                    mock_member.name = "kubeseal"
+                    mock_member.isfile.return_value = True
+                    mock_tar.getmembers.return_value = [mock_member]
+                    mock_tar.__enter__ = MagicMock(return_value=mock_tar)
+                    mock_tar.__exit__ = MagicMock(return_value=False)
+                    mock_tarfile.return_value = mock_tar
+
                     host._download_kubeseal_binary("0.26.0")
                     mock_makedirs.assert_called_once()
