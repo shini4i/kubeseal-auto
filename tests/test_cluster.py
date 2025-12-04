@@ -175,21 +175,21 @@ class TestClusterCertificateDiscovery:
             mock_api.return_value = api_instance
 
             # Create mock secrets with different timestamps
-            from datetime import datetime, timedelta
+            from datetime import datetime, timedelta, timezone
 
             secret1 = MagicMock()
             secret1.metadata.name = "sealed-secrets-key-old"
-            secret1.metadata.creation_timestamp = datetime.now() - timedelta(days=30)
+            secret1.metadata.creation_timestamp = datetime.now(timezone.utc) - timedelta(days=30)
             secret1.type = "kubernetes.io/tls"
 
             secret2 = MagicMock()
             secret2.metadata.name = "sealed-secrets-key-new"
-            secret2.metadata.creation_timestamp = datetime.now()
+            secret2.metadata.creation_timestamp = datetime.now(timezone.utc)
             secret2.type = "kubernetes.io/tls"
 
             secret3 = MagicMock()
             secret3.metadata.name = "other-secret"
-            secret3.metadata.creation_timestamp = datetime.now()
+            secret3.metadata.creation_timestamp = datetime.now(timezone.utc)
             secret3.type = "Opaque"
 
             api_instance.list_namespaced_secret.return_value.items = [secret1, secret2, secret3]

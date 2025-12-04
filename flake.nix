@@ -13,14 +13,15 @@
     let
       supportedSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       perSystem = nixpkgs.lib.genAttrs supportedSystems;
+      pkgsFor = system: import nixpkgs {
+        inherit system;
+        overlays = [ poetry2nix.overlays.default ];
+      };
     in
     {
       packages = perSystem (system:
         let
-          pkgs = import nixpkgs {
-            inherit system;
-            overlays = [ poetry2nix.overlays.default ];
-          };
+          pkgs = pkgsFor system;
         in
         {
           default = pkgs.poetry2nix.mkPoetryApplication {
@@ -32,10 +33,7 @@
 
       devShells = perSystem (system:
         let
-          pkgs = import nixpkgs {
-            inherit system;
-            overlays = [ poetry2nix.overlays.default ];
-          };
+          pkgs = pkgsFor system;
         in
         {
           default = pkgs.mkShell {
