@@ -8,14 +8,13 @@ import os
 import subprocess
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Optional
+from typing import Any
 
 import click
 import questionary
 import yaml
 from colorama import Fore
 from icecream import ic
-from yaml.composer import ComposerError
 
 from kubeseal_auto.cluster import Cluster
 from kubeseal_auto.exceptions import BinaryNotFoundError, SecretParsingError
@@ -39,7 +38,7 @@ class Kubeseal:
         temp_file: Temporary file for intermediate secret storage.
     """
 
-    def __init__(self, select_context: bool, certificate: Optional[str] = None) -> None:
+    def __init__(self, select_context: bool, certificate: str | None = None) -> None:
         """Initialize Kubeseal with cluster connection or certificate.
 
         Args:
@@ -49,8 +48,8 @@ class Kubeseal:
         """
         self.detached_mode: bool = False
         self.binary: str = "kubeseal"
-        self.certificate: Optional[str] = None
-        self.cluster: Optional[Cluster] = None
+        self.certificate: str | None = None
+        self.cluster: Cluster | None = None
         self.controller_name: str = ""
         self.controller_namespace: str = ""
         self.current_context_name: str = ""
@@ -107,12 +106,10 @@ class Kubeseal:
             namespace = questionary.text("Provide namespace for the new secret").unsafe_ask()
         else:
             namespace = questionary.select(
-                "Select namespace for the new secret",
-                choices=self.namespaces_list
+                "Select namespace for the new secret", choices=self.namespaces_list
             ).unsafe_ask()
         secret_type = questionary.select(
-            "Select secret type to create",
-            choices=["generic", "tls", "docker-registry"]
+            "Select secret type to create", choices=["generic", "tls", "docker-registry"]
         ).unsafe_ask()
         secret_name = questionary.text("Provide name for the new secret").unsafe_ask()
 
@@ -139,9 +136,16 @@ class Kubeseal:
         click.echo("===> Generating a temporary generic secret yaml file")
 
         cmd: list[str] = [
-            "kubectl", "create", "secret", "generic", secret_params["name"],
-            "--namespace", secret_params["namespace"],
-            "--dry-run=client", "-o", "yaml"
+            "kubectl",
+            "create",
+            "secret",
+            "generic",
+            secret_params["name"],
+            "--namespace",
+            secret_params["namespace"],
+            "--dry-run=client",
+            "-o",
+            "yaml",
         ]
 
         for secret in secrets.splitlines():
@@ -168,11 +172,20 @@ class Kubeseal:
         """
         click.echo("===> Generating a temporary tls secret yaml file")
         cmd: list[str] = [
-            "kubectl", "create", "secret", "tls", secret_params["name"],
-            "--namespace", secret_params["namespace"],
-            "--key", "tls.key",
-            "--cert", "tls.crt",
-            "--dry-run=client", "-o", "yaml"
+            "kubectl",
+            "create",
+            "secret",
+            "tls",
+            secret_params["name"],
+            "--namespace",
+            secret_params["namespace"],
+            "--key",
+            "tls.key",
+            "--cert",
+            "tls.crt",
+            "--dry-run=client",
+            "-o",
+            "yaml",
         ]
         ic(cmd)
 
@@ -194,12 +207,19 @@ class Kubeseal:
         docker_password = questionary.text("Provide docker-password").unsafe_ask()
 
         cmd: list[str] = [
-            "kubectl", "create", "secret", "docker-registry", secret_params["name"],
-            "--namespace", secret_params["namespace"],
+            "kubectl",
+            "create",
+            "secret",
+            "docker-registry",
+            secret_params["name"],
+            "--namespace",
+            secret_params["namespace"],
             f"--docker-server={docker_server}",
             f"--docker-username={docker_username}",
             f"--docker-password={docker_password}",
-            "--dry-run=client", "-o", "yaml"
+            "--dry-run=client",
+            "-o",
+            "yaml",
         ]
         ic(cmd)
 
@@ -216,28 +236,26 @@ class Kubeseal:
         """
         click.echo("===> Sealing generated secret file")
         if self.detached_mode:
-            cmd: list[str] = [
-                self.binary, "--format=yaml",
-                f"--cert={self.certificate}"
-            ]
+            cmd: list[str] = [self.binary, "--format=yaml", f"--cert={self.certificate}"]
         else:
             cmd = [
-                self.binary, "--format=yaml",
+                self.binary,
+                "--format=yaml",
                 f"--context={self.current_context_name}",
                 f"--controller-namespace={self.controller_namespace}",
-                f"--controller-name={self.controller_name}"
+                f"--controller-name={self.controller_name}",
             ]
         ic(cmd)
 
         output_file = f"{secret_name}.yaml"
-        with open(self.temp_file.name, "r") as stdin_f, open(output_file, "w") as stdout_f:
+        with open(self.temp_file.name) as stdin_f, open(output_file, "w") as stdout_f:
             subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, check=True)
 
         self.append_argo_annotation(filename=output_file)
         click.echo("===> Done")
 
     @staticmethod
-    def parse_existing_secret(secret_name: str) -> Optional[dict[str, Any]]:
+    def parse_existing_secret(secret_name: str) -> dict[str, Any] | None:
         """Parse a YAML secret file.
 
         Args:
@@ -250,7 +268,7 @@ class Kubeseal:
             SecretParsingError: If the file does not exist or contains multiple documents.
         """
         try:
-            with open(secret_name, "r") as stream:
+            with open(secret_name) as stream:
                 docs = [doc for doc in yaml.safe_load_all(stream) if doc is not None]
                 if len(docs) > 1:
                     raise SecretParsingError(
@@ -258,8 +276,8 @@ class Kubeseal:
                         "Only single document files are supported."
                     )
                 return docs[0] if docs else None
-        except FileNotFoundError:
-            raise SecretParsingError(f"Secret file '{secret_name}' does not exist")
+        except FileNotFoundError as err:
+            raise SecretParsingError(f"Secret file '{secret_name}' does not exist") from err
 
     def merge(self, secret_name: str) -> None:
         """Merge new secret entries into an existing sealed secret file.
@@ -269,22 +287,20 @@ class Kubeseal:
         """
         click.echo(f"===> Updating {secret_name}")
         if self.detached_mode:
-            cmd: list[str] = [
-                self.binary, "--format=yaml",
-                "--merge-into", secret_name,
-                f"--cert={self.certificate}"
-            ]
+            cmd: list[str] = [self.binary, "--format=yaml", "--merge-into", secret_name, f"--cert={self.certificate}"]
         else:
             cmd = [
-                self.binary, "--format=yaml",
-                "--merge-into", secret_name,
+                self.binary,
+                "--format=yaml",
+                "--merge-into",
+                secret_name,
                 f"--context={self.current_context_name}",
                 f"--controller-namespace={self.controller_namespace}",
-                f"--controller-name={self.controller_name}"
+                f"--controller-name={self.controller_name}",
             ]
         ic(cmd)
 
-        with open(self.temp_file.name, "r") as stdin_f:
+        with open(self.temp_file.name) as stdin_f:
             subprocess.run(cmd, stdin=stdin_f, check=True)
 
         self.append_argo_annotation(filename=secret_name)
@@ -314,7 +330,7 @@ class Kubeseal:
 
         # Split, strip whitespace from each option, and filter out any empty strings
         # that might arise from consecutive commas or leading/trailing commas.
-        options_list = [opt.strip() for opt in current_sync_options_str.split(',') if opt.strip()]
+        options_list = [opt.strip() for opt in current_sync_options_str.split(",") if opt.strip()]
 
         # Filter out any pre-existing "SkipDryRunOnMissingResource=" option
         # to ensure we don't duplicate it or have conflicting values.
@@ -337,10 +353,12 @@ class Kubeseal:
         click.echo("===> Downloading certificate for kubeseal...")
         cmd: list[str] = [
             "kubeseal",
-            "--controller-namespace", self.controller_namespace,
+            "--controller-namespace",
+            self.controller_namespace,
             f"--context={self.current_context_name}",
-            "--controller-name", self.controller_name,
-            "--fetch-cert"
+            "--controller-name",
+            self.controller_name,
+            "--fetch-cert",
         ]
         ic(cmd)
 
@@ -362,15 +380,18 @@ class Kubeseal:
             os.rename(secret, tmp_file)
 
             cmd: list[str] = [
-                "kubeseal", "--format=yaml",
+                "kubeseal",
+                "--format=yaml",
                 f"--context={self.current_context_name}",
-                "--controller-namespace", self.controller_namespace,
-                "--controller-name", self.controller_name,
-                "--re-encrypt"
+                "--controller-namespace",
+                self.controller_namespace,
+                "--controller-name",
+                self.controller_name,
+                "--re-encrypt",
             ]
             ic(cmd)
 
-            with open(tmp_file, "r") as stdin_f, open(str(secret), "w") as stdout_f:
+            with open(tmp_file) as stdin_f, open(str(secret), "w") as stdout_f:
                 subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, check=True)
 
             os.remove(tmp_file)
@@ -382,11 +403,7 @@ class Kubeseal:
             raise click.ClickException("Backup is not available in detached mode")
 
         secret = self.cluster.find_latest_sealed_secrets_controller_certificate()
-        cmd: list[str] = [
-            "kubectl", "get", "secret",
-            "-n", self.controller_namespace,
-            secret, "-o", "yaml"
-        ]
+        cmd: list[str] = ["kubectl", "get", "secret", "-n", self.controller_namespace, secret, "-o", "yaml"]
         ic(cmd)
 
         output_file = f"{self.current_context_name}-secret-backup.yaml"

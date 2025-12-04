@@ -1,13 +1,10 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """Command-line interface for kubeseal-auto.
 
 This module provides the main CLI entry point for the kubeseal-auto tool,
 handling command-line argument parsing and orchestrating the various
 secret management operations.
 """
-
-from typing import Optional
 
 import click
 import colorama
@@ -57,7 +54,7 @@ def edit_secret(kubeseal: Kubeseal, file: str) -> None:
     try:
         secret = kubeseal.parse_existing_secret(file)
     except SecretParsingError as e:
-        raise click.ClickException(str(e))
+        raise click.ClickException(str(e)) from None
 
     if secret is None:
         raise click.ClickException(f"Secret file '{file}' is empty")
@@ -84,11 +81,11 @@ def cli(
     debug: bool,
     select: bool,
     fetch: bool,
-    cert: Optional[str],
-    edit: Optional[str],
-    re_encrypt: Optional[str],
+    cert: str | None,
+    edit: str | None,
+    re_encrypt: str | None,
     backup: bool,
-    version: bool
+    version: bool,
 ) -> None:
     """Main CLI entry point for kubeseal-auto.
 

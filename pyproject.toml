@@ -22,6 +22,10 @@ colorama = "^0.4.6"
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.3"
 pytest-cov = "^6.0.0"
+ruff = "^0.8.2"
+mypy = "^1.13.0"
+types-PyYAML = "^6.0"
+types-requests = "^2.31"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -29,3 +33,46 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 kubeseal-auto = "kubeseal_auto.cli:cli"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "W",      # pycodestyle warnings
+    "I",      # isort
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "SIM108", # ternary operator - explicit if/else is clearer for Kubeseal init
+    "SIM115", # context manager for temp file - NamedTemporaryFile is managed by class lifecycle
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["kubeseal_auto"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "requests.*",
+    "yaml.*",
+    "kubernetes.*",
+    "questionary.*",
+    "icecream.*",
+    "colorama.*",
+]
+ignore_missing_imports = true
+ignore_errors = true

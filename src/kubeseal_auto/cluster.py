@@ -53,9 +53,9 @@ class Cluster:
         contexts, current_context = config.list_kube_config_contexts()
         if select_context:
             context_names: list[str] = [context["name"] for context in contexts]
-            context = questionary.select("Select context to work with", choices=context_names).ask()
+            context: str = questionary.select("Select context to work with", choices=context_names).ask()
         else:
-            context = current_context["name"]
+            context = str(current_context["name"])
         click.echo(f"===> Working with [{Fore.CYAN}{context}{Fore.RESET}] cluster")
         return context
 
@@ -140,7 +140,7 @@ class Cluster:
         if secrets:
             secrets.sort(key=lambda x: x["timestamp"])
 
-        return secrets[-1]["name"]
+        return str(secrets[-1]["name"])
 
     def ensure_kubeseal_version(self, version: str) -> None:
         """Ensure the kubeseal binary for the specified version is available.

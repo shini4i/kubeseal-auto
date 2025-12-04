@@ -30,6 +30,32 @@
           };
         });
 
+      devShells = perSystem (system:
+        let
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [ poetry2nix.overlays.default ];
+          };
+        in
+        {
+          default = pkgs.mkShell {
+            buildInputs = with pkgs; [
+              python312
+              poetry
+              kubectl
+              kubeseal
+              pre-commit
+              ruff
+            ];
+            shellHook = ''
+              export POETRY_VIRTUALENVS_IN_PROJECT=true
+              echo "kubeseal-auto development environment"
+              echo "Run 'poetry install' to install dependencies"
+              echo "Run 'pre-commit install' to set up git hooks"
+            '';
+          };
+        });
+
       homeManagerModules.default = { pkgs, ... }: {
         home.packages = [ self.packages.${pkgs.system}.default ];
       };

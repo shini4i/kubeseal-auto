@@ -97,10 +97,7 @@ class Host:
             with open(local_path, "wb") as f:
                 f.write(r.content)
 
-        subprocess.run(
-            ["tar", "-xvf", local_path, "-C", self.bin_location, "kubeseal"],
-            check=True
-        )
+        subprocess.run(["tar", "-xvf", local_path, "-C", self.bin_location, "kubeseal"], check=True)
         os.rename(f"{self.bin_location}/kubeseal", f"{self.bin_location}/kubeseal-{version}")
         os.remove(local_path)
 
@@ -117,7 +114,5 @@ class Host:
         """
         version = version.split("v")[-1]
         if not os.path.exists(f"{self.bin_location}/kubeseal-{version}"):
-            click.echo(
-                f"kubeseal binary not found at {self.bin_location}/kubeseal-{version}"
-            )
+            click.echo(f"kubeseal binary not found at {self.bin_location}/kubeseal-{version}")
             self._download_kubeseal_binary(version)
