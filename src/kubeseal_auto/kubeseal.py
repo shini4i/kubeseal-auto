@@ -1,7 +1,14 @@
+"""Kubeseal wrapper for creating and managing sealed secrets.
+
+This module provides the Kubeseal class which wraps the kubeseal binary
+to create, seal, and manage Kubernetes sealed secrets.
+"""
+
 import os
 import subprocess
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from typing import Any, Optional
 
 import click
 import questionary
@@ -11,13 +18,43 @@ from icecream import ic
 from yaml.composer import ComposerError
 
 from kubeseal_auto.cluster import Cluster
+from kubeseal_auto.exceptions import BinaryNotFoundError, SecretParsingError
 
 
 class Kubeseal:
-    def __init__(self, select_context: bool, certificate=None):
-        self.detached_mode = False
+    """Wrapper for kubeseal binary operations.
 
-        self.binary = "kubeseal"
+    This class provides methods for creating, sealing, and managing
+    Kubernetes secrets using the kubeseal binary.
+
+    Attributes:
+        detached_mode: Whether operating without direct cluster access.
+        binary: Path to the kubeseal binary.
+        certificate: Path to the certificate file (detached mode only).
+        cluster: Cluster instance for cluster operations.
+        controller_name: Name of the SealedSecrets controller.
+        controller_namespace: Namespace of the SealedSecrets controller.
+        current_context_name: Current Kubernetes context name.
+        namespaces_list: List of available namespaces.
+        temp_file: Temporary file for intermediate secret storage.
+    """
+
+    def __init__(self, select_context: bool, certificate: Optional[str] = None) -> None:
+        """Initialize Kubeseal with cluster connection or certificate.
+
+        Args:
+            select_context: If True, prompt user to select a Kubernetes context.
+            certificate: Path to certificate file for detached mode. If provided,
+                        operates without connecting to a cluster.
+        """
+        self.detached_mode: bool = False
+        self.binary: str = "kubeseal"
+        self.certificate: Optional[str] = None
+        self.cluster: Optional[Cluster] = None
+        self.controller_name: str = ""
+        self.controller_namespace: str = ""
+        self.current_context_name: str = ""
+        self.namespaces_list: list[str] = []
 
         if certificate is not None:
             click.echo("===> Working in a detached mode")
@@ -35,35 +72,61 @@ class Kubeseal:
             try:
                 self.cluster.ensure_kubeseal_version(version)
                 self.binary = f"{home_dir}/bin/kubeseal-{version}"
-            except FileNotFoundError:
+            except BinaryNotFoundError:
                 click.echo("==> Falling back to the default kubeseal binary")
 
-        self.temp_file = NamedTemporaryFile()
+        self.temp_file: Any = NamedTemporaryFile()
 
-    def _find_sealed_secrets(self, src: str) -> list:
-        secrets = []
+    def _find_sealed_secrets(self, src: str) -> list[Path]:
+        """Find all SealedSecret files in a directory.
+
+        Args:
+            src: Path to the directory to search.
+
+        Returns:
+            List of paths to SealedSecret YAML files.
+        """
+        secrets: list[Path] = []
         for path in Path(src).rglob("*.yaml"):
             secret = self.parse_existing_secret(str(path.absolute()))
             try:
                 if secret is not None and secret["kind"] == "SealedSecret":
                     secrets.append(path.absolute())
             except KeyError:
-                ...
+                # Not a SealedSecret, skip
+                continue
         return secrets
 
-    def collect_parameters(self) -> dict:
+    def collect_parameters(self) -> dict[str, str]:
+        """Interactively collect parameters for creating a new secret.
+
+        Returns:
+            Dictionary with 'namespace', 'type', and 'name' keys.
+        """
         if self.detached_mode:
             namespace = questionary.text("Provide namespace for the new secret").unsafe_ask()
         else:
-            namespace = questionary.select("Select namespace for the new secret",
-                                           choices=self.namespaces_list).unsafe_ask()
-        secret_type = questionary.select("Select secret type to create",
-                                         choices=["generic", "tls", "docker-registry"]).unsafe_ask()
+            namespace = questionary.select(
+                "Select namespace for the new secret",
+                choices=self.namespaces_list
+            ).unsafe_ask()
+        secret_type = questionary.select(
+            "Select secret type to create",
+            choices=["generic", "tls", "docker-registry"]
+        ).unsafe_ask()
         secret_name = questionary.text("Provide name for the new secret").unsafe_ask()
 
         return {"namespace": namespace, "type": secret_type, "name": secret_name}
 
-    def create_generic_secret(self, secret_params: dict):
+    def create_generic_secret(self, secret_params: dict[str, str]) -> None:
+        """Generate a temporary generic secret YAML file from user-provided entries.
+
+        Prompts user for key=value pairs (literals) or filenames. Each entry
+        is processed and passed to kubectl to create a secret.
+
+        Args:
+            secret_params: Dictionary containing 'name' and 'namespace' keys.
+        """
         click.echo(
             "===> Provide literal entry/entries one per line: "
             f"[{Fore.CYAN}literal{Fore.RESET}] key=value "
@@ -75,188 +138,257 @@ class Kubeseal:
 
         click.echo("===> Generating a temporary generic secret yaml file")
 
-        secret_entries = ""
+        cmd: list[str] = [
+            "kubectl", "create", "secret", "generic", secret_params["name"],
+            "--namespace", secret_params["namespace"],
+            "--dry-run=client", "-o", "yaml"
+        ]
 
         for secret in secrets.splitlines():
+            secret = secret.strip()
+            if not secret:
+                continue
             if "=" in secret:
-                secret = secret.replace('"', '\\"') # this line is needed to preserve quotes in the secret value
-                secret_entries = f"{secret_entries} --from-literal=\"{secret}\""
+                cmd.append(f"--from-literal={secret}")
             else:
-                secret_entries = f"{secret_entries} --from-file={secret}"
+                cmd.append(f"--from-file={secret}")
 
-        command = (
-            f"kubectl create secret generic {secret_params['name']} {secret_entries} "
-            f"--namespace {secret_params['namespace']} --dry-run=client -o yaml "
-            f"> {self.temp_file.name}"
-        )
-        ic(command)
+        ic(cmd)
 
-        subprocess.call(command, shell=True)
+        with open(self.temp_file.name, "w") as f:
+            subprocess.run(cmd, stdout=f, check=True)
 
-    def create_tls_secret(self, secret_params: dict):
+    def create_tls_secret(self, secret_params: dict[str, str]) -> None:
+        """Generate a temporary TLS secret YAML file.
+
+        Expects tls.key and tls.crt files to exist in the current directory.
+
+        Args:
+            secret_params: Dictionary containing 'name' and 'namespace' keys.
+        """
         click.echo("===> Generating a temporary tls secret yaml file")
-        command = (
-            f"kubectl create secret tls {secret_params['name']} "
-            f"--namespace {secret_params['namespace']} --key tls.key --cert tls.crt "
-            f"--dry-run=client -o yaml > {self.temp_file.name}"
-        )
-        ic(command)
+        cmd: list[str] = [
+            "kubectl", "create", "secret", "tls", secret_params["name"],
+            "--namespace", secret_params["namespace"],
+            "--key", "tls.key",
+            "--cert", "tls.crt",
+            "--dry-run=client", "-o", "yaml"
+        ]
+        ic(cmd)
 
-        subprocess.call(command, shell=True)
+        with open(self.temp_file.name, "w") as f:
+            subprocess.run(cmd, stdout=f, check=True)
 
-    def create_regcred_secret(self, secret_params: dict):
-        click.echo("===> Generating a temporary tls secret yaml file")
+    def create_regcred_secret(self, secret_params: dict[str, str]) -> None:
+        """Generate a temporary docker-registry secret YAML file.
+
+        Prompts user for Docker registry credentials.
+
+        Args:
+            secret_params: Dictionary containing 'name' and 'namespace' keys.
+        """
+        click.echo("===> Generating a temporary docker-registry secret yaml file")
 
         docker_server = questionary.text("Provide docker-server").unsafe_ask()
         docker_username = questionary.text("Provide docker-username").unsafe_ask()
         docker_password = questionary.text("Provide docker-password").unsafe_ask()
 
-        command = (
-            f"kubectl create secret docker-registry {secret_params['name']} "
-            f"--namespace {secret_params['namespace']} "
-            f"--docker-server={docker_server} "
-            f"--docker-username={docker_username} "
-            f"--docker-password={docker_password} "
-            f"--dry-run=client -o yaml > {self.temp_file.name}"
-        )
-        ic(command)
+        cmd: list[str] = [
+            "kubectl", "create", "secret", "docker-registry", secret_params["name"],
+            "--namespace", secret_params["namespace"],
+            f"--docker-server={docker_server}",
+            f"--docker-username={docker_username}",
+            f"--docker-password={docker_password}",
+            "--dry-run=client", "-o", "yaml"
+        ]
+        ic(cmd)
 
-        subprocess.call(command, shell=True)
+        with open(self.temp_file.name, "w") as f:
+            subprocess.run(cmd, stdout=f, check=True)
 
-    def seal(self, secret_name: str):
+    def seal(self, secret_name: str) -> None:
+        """Seal a secret using kubeseal.
+
+        Reads the temporary secret file and outputs a sealed secret YAML file.
+
+        Args:
+            secret_name: Name for the output sealed secret file (without .yaml extension).
+        """
         click.echo("===> Sealing generated secret file")
         if self.detached_mode:
-            command = (
-                f"{self.binary} --format=yaml "
-                f"--cert={self.certificate} < {self.temp_file.name} "
-                f"> {secret_name}.yaml"
-            )
+            cmd: list[str] = [
+                self.binary, "--format=yaml",
+                f"--cert={self.certificate}"
+            ]
         else:
-            command = (
-                f"{self.binary} --format=yaml "
-                f"--context={self.current_context_name} "
-                f"--controller-namespace={self.controller_namespace} "
-                f"--controller-name={self.controller_name} < {self.temp_file.name} "
-                f"> {secret_name}.yaml"
-            )
-        ic(command)
-        subprocess.call(command, shell=True)
-        self.append_argo_annotation(filename=f"{secret_name}.yaml")
+            cmd = [
+                self.binary, "--format=yaml",
+                f"--context={self.current_context_name}",
+                f"--controller-namespace={self.controller_namespace}",
+                f"--controller-name={self.controller_name}"
+            ]
+        ic(cmd)
+
+        output_file = f"{secret_name}.yaml"
+        with open(self.temp_file.name, "r") as stdin_f, open(output_file, "w") as stdout_f:
+            subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, check=True)
+
+        self.append_argo_annotation(filename=output_file)
         click.echo("===> Done")
 
     @staticmethod
-    def parse_existing_secret(secret_name: str):
+    def parse_existing_secret(secret_name: str) -> Optional[dict[str, Any]]:
+        """Parse a YAML secret file.
+
+        Args:
+            secret_name: Path to the secret file.
+
+        Returns:
+            The parsed YAML document as a dictionary, or None if empty.
+
+        Raises:
+            SecretParsingError: If the file does not exist or contains multiple documents.
+        """
         try:
             with open(secret_name, "r") as stream:
                 docs = [doc for doc in yaml.safe_load_all(stream) if doc is not None]
                 if len(docs) > 1:
-                    raise ComposerError("Only single document yaml files are supported")
-                return docs[0]
+                    raise SecretParsingError(
+                        f"File '{secret_name}' contains multiple YAML documents. "
+                        "Only single document files are supported."
+                    )
+                return docs[0] if docs else None
         except FileNotFoundError:
-            click.echo("Provided file does not exists. Aborting.")
-            exit(1)
+            raise SecretParsingError(f"Secret file '{secret_name}' does not exist")
 
-    def merge(self, secret_name: str):
+    def merge(self, secret_name: str) -> None:
+        """Merge new secret entries into an existing sealed secret file.
+
+        Args:
+            secret_name: Path to the existing sealed secret file to update.
+        """
         click.echo(f"===> Updating {secret_name}")
         if self.detached_mode:
-            command = (
-                f"{self.binary} --format=yaml --merge-into {secret_name} "
-                f"--cert={self.certificate} < {self.temp_file.name} "
-            )
+            cmd: list[str] = [
+                self.binary, "--format=yaml",
+                "--merge-into", secret_name,
+                f"--cert={self.certificate}"
+            ]
         else:
-            command = (
-                f"{self.binary} --format=yaml --merge-into {secret_name} "
-                f"--context={self.current_context_name} "
-                f"--controller-namespace={self.controller_namespace} "
-                f"--controller-name={self.controller_name} < {self.temp_file.name}"
-            )
-        ic(command)
-        subprocess.call(command, shell=True)
+            cmd = [
+                self.binary, "--format=yaml",
+                "--merge-into", secret_name,
+                f"--context={self.current_context_name}",
+                f"--controller-namespace={self.controller_namespace}",
+                f"--controller-name={self.controller_name}"
+            ]
+        ic(cmd)
+
+        with open(self.temp_file.name, "r") as stdin_f:
+            subprocess.run(cmd, stdin=stdin_f, check=True)
+
         self.append_argo_annotation(filename=secret_name)
         click.echo("===> Done")
 
-    def append_argo_annotation(self, filename: str):
-        """
-        This method is used to append an annotations that will allow
-        ArgoCD to process git repository which has SealedSecrets before
-        the related controller is deployed in the cluster
+    def append_argo_annotation(self, filename: str) -> None:
+        """Append ArgoCD sync annotations to a sealed secret file.
 
-        Parameters:
-             filename: the filename of the resulting yaml file
+        This allows ArgoCD to process repositories with SealedSecrets
+        before the controller is deployed in the cluster.
+
+        Args:
+            filename: Path to the sealed secret YAML file.
         """
         secret = self.parse_existing_secret(filename)
+        if secret is None:
+            return
+
         click.echo("===> Appending ArgoCD related annotations")
 
-        annotations = secret["metadata"].setdefault("annotations", {})
-        
+        annotations: dict[str, str] = secret["metadata"].setdefault("annotations", {})
+
         sync_key = "argocd.argoproj.io/sync-options"
         skip_option_value = "SkipDryRunOnMissingResource=true"
-        
+
         current_sync_options_str = annotations.get(sync_key, "")
-        
+
         # Split, strip whitespace from each option, and filter out any empty strings
         # that might arise from consecutive commas or leading/trailing commas.
         options_list = [opt.strip() for opt in current_sync_options_str.split(',') if opt.strip()]
-        
+
         # Filter out any pre-existing "SkipDryRunOnMissingResource=" option
         # to ensure we don't duplicate it or have conflicting values.
         filtered_options = [opt for opt in options_list if not opt.startswith("SkipDryRunOnMissingResource=")]
-        
+
         # Add the desired option to the beginning of the list.
         final_options = [skip_option_value] + filtered_options
-        
+
         annotations[sync_key] = ",".join(final_options)
 
         with open(filename, "w") as stream:
             yaml.safe_dump(secret, stream)
 
-    def fetch_certificate(self):
-        """
-        This method downloads a certificate that can be used in the future
-        to encrypt secrets without direct access to the cluster
+    def fetch_certificate(self) -> None:
+        """Download the kubeseal encryption certificate from the cluster.
+
+        This certificate can be used in the future to encrypt secrets
+        without direct access to the cluster (detached mode).
         """
         click.echo("===> Downloading certificate for kubeseal...")
-        command = (
-            f"kubeseal --controller-namespace {self.controller_namespace} "
-            f"--context={self.current_context_name} "
-            f"--controller-name {self.controller_name} --fetch-cert "
-            f"> {self.current_context_name}-kubeseal-cert.crt"
-        )
-        ic(command)
-        subprocess.call(command, shell=True)
-        click.echo(f"===> Saved to {Fore.CYAN}{self.current_context_name}-kubeseal-cert.crt")
+        cmd: list[str] = [
+            "kubeseal",
+            "--controller-namespace", self.controller_namespace,
+            f"--context={self.current_context_name}",
+            "--controller-name", self.controller_name,
+            "--fetch-cert"
+        ]
+        ic(cmd)
 
-    def reencrypt(self, src: str):
-        """
-        This method re-encrypts the existing SealedSecret files in a user provided directory
-        using the newest encryption certificate
+        output_file = f"{self.current_context_name}-kubeseal-cert.crt"
+        with open(output_file, "w") as f:
+            subprocess.run(cmd, stdout=f, check=True)
 
-        Parameters:
-            src: the directory with SealedSecret files
+        click.echo(f"===> Saved to {Fore.CYAN}{output_file}")
+
+    def reencrypt(self, src: str) -> None:
+        """Re-encrypt existing SealedSecret files using the newest encryption certificate.
+
+        Args:
+            src: Path to the directory containing SealedSecret files.
         """
         for secret in self._find_sealed_secrets(src):
             click.echo(f"Re-encrypting {secret}")
-            os.rename(secret, f"{secret}_tmp")
-            command = (
-                "kubeseal --format=yaml "
-                f"--context={self.current_context_name} "
-                f"--controller-namespace {self.controller_namespace} "
-                f"--controller-name {self.controller_name} "
-                f"--re-encrypt < {secret}_tmp > {secret}"
-            )
-            ic(command)
-            subprocess.call(command, shell=True)
-            os.remove(f"{secret}_tmp")
-            self.append_argo_annotation(secret)
+            tmp_file = f"{secret}_tmp"
+            os.rename(secret, tmp_file)
 
-    def backup(self):
-        """
-        This method makes a backup of the latest SealedSecret controllers encryption secret
-        """
+            cmd: list[str] = [
+                "kubeseal", "--format=yaml",
+                f"--context={self.current_context_name}",
+                "--controller-namespace", self.controller_namespace,
+                "--controller-name", self.controller_name,
+                "--re-encrypt"
+            ]
+            ic(cmd)
+
+            with open(tmp_file, "r") as stdin_f, open(str(secret), "w") as stdout_f:
+                subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, check=True)
+
+            os.remove(tmp_file)
+            self.append_argo_annotation(str(secret))
+
+    def backup(self) -> None:
+        """Create a backup of the latest SealedSecret controller's encryption secret."""
+        if self.cluster is None:
+            raise click.ClickException("Backup is not available in detached mode")
+
         secret = self.cluster.find_latest_sealed_secrets_controller_certificate()
-        command = (
-            f"kubectl get secret -n {self.controller_namespace} "
-            f"{secret} -o yaml > {self.current_context_name}-secret-backup.yaml"
-        )
-        ic(command)
-        subprocess.call(command, shell=True)
+        cmd: list[str] = [
+            "kubectl", "get", "secret",
+            "-n", self.controller_namespace,
+            secret, "-o", "yaml"
+        ]
+        ic(cmd)
+
+        output_file = f"{self.current_context_name}-secret-backup.yaml"
+        with open(output_file, "w") as f:
+            subprocess.run(cmd, stdout=f, check=True)
