@@ -20,6 +20,11 @@ from icecream import ic
 from kubeseal_auto.cluster import Cluster
 from kubeseal_auto.exceptions import BinaryNotFoundError, SecretParsingError
 
+# CLI flag constants for kubectl and kubeseal commands
+_DRY_RUN_CLIENT = "--dry-run=client"
+_OUTPUT_YAML = "-o"
+_FORMAT_YAML = "--format=yaml"
+
 
 class Kubeseal:
     """Wrapper for kubeseal binary operations.
@@ -143,8 +148,8 @@ class Kubeseal:
             secret_params["name"],
             "--namespace",
             secret_params["namespace"],
-            "--dry-run=client",
-            "-o",
+            _DRY_RUN_CLIENT,
+            _OUTPUT_YAML,
             "yaml",
         ]
 
@@ -183,8 +188,8 @@ class Kubeseal:
             "tls.key",
             "--cert",
             "tls.crt",
-            "--dry-run=client",
-            "-o",
+            _DRY_RUN_CLIENT,
+            _OUTPUT_YAML,
             "yaml",
         ]
         ic(cmd)
@@ -217,8 +222,8 @@ class Kubeseal:
             f"--docker-server={docker_server}",
             f"--docker-username={docker_username}",
             f"--docker-password={docker_password}",
-            "--dry-run=client",
-            "-o",
+            _DRY_RUN_CLIENT,
+            _OUTPUT_YAML,
             "yaml",
         ]
         # Don't log cmd as it contains sensitive docker credentials
@@ -236,11 +241,11 @@ class Kubeseal:
         """
         click.echo("===> Sealing generated secret file")
         if self.detached_mode:
-            cmd: list[str] = [self.binary, "--format=yaml", f"--cert={self.certificate}"]
+            cmd: list[str] = [self.binary, _FORMAT_YAML, f"--cert={self.certificate}"]
         else:
             cmd = [
                 self.binary,
-                "--format=yaml",
+                _FORMAT_YAML,
                 f"--context={self.current_context_name}",
                 f"--controller-namespace={self.controller_namespace}",
                 f"--controller-name={self.controller_name}",
@@ -278,6 +283,8 @@ class Kubeseal:
                 return docs[0] if docs else None
         except FileNotFoundError as err:
             raise SecretParsingError(f"Secret file '{secret_name}' does not exist") from err
+        except yaml.YAMLError as err:
+            raise SecretParsingError(f"Secret file '{secret_name}' contains malformed YAML: {err}") from err
 
     def merge(self, secret_name: str) -> None:
         """Merge new secret entries into an existing sealed secret file.
@@ -287,11 +294,11 @@ class Kubeseal:
         """
         click.echo(f"===> Updating {secret_name}")
         if self.detached_mode:
-            cmd: list[str] = [self.binary, "--format=yaml", "--merge-into", secret_name, f"--cert={self.certificate}"]
+            cmd: list[str] = [self.binary, _FORMAT_YAML, "--merge-into", secret_name, f"--cert={self.certificate}"]
         else:
             cmd = [
                 self.binary,
-                "--format=yaml",
+                _FORMAT_YAML,
                 "--merge-into",
                 secret_name,
                 f"--context={self.current_context_name}",
@@ -384,7 +391,7 @@ class Kubeseal:
 
             cmd: list[str] = [
                 self.binary,
-                "--format=yaml",
+                _FORMAT_YAML,
                 f"--context={self.current_context_name}",
                 "--controller-namespace",
                 self.controller_namespace,
@@ -416,7 +423,7 @@ class Kubeseal:
             raise click.ClickException("Backup is not available in detached mode")
 
         secret = self.cluster.find_latest_sealed_secrets_controller_certificate()
-        cmd: list[str] = ["kubectl", "get", "secret", "-n", self.controller_namespace, secret, "-o", "yaml"]
+        cmd: list[str] = ["kubectl", "get", "secret", "-n", self.controller_namespace, secret, _OUTPUT_YAML, "yaml"]
         ic(cmd)
 
         output_file = f"{self.current_context_name}-secret-backup.yaml"

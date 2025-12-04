@@ -44,6 +44,7 @@
               kubeseal
               pre-commit
               ruff
+              mypy
             ];
             shellHook = ''
               export POETRY_VIRTUALENVS_IN_PROJECT=true

@@ -211,6 +211,19 @@ class TestKubesealParsing:
 
         assert result is None
 
+    def test_parse_existing_secret_malformed_yaml(self, kubeseal_mocks):
+        """Test parsing malformed YAML raises SecretParsingError."""
+        kubeseal = Kubeseal(select_context=False)
+        malformed_yaml = "apiVersion: v1\nkind: Secret\nmetadata: [:"
+
+        with (
+            patch("builtins.open", mock_open(read_data=malformed_yaml)),
+            pytest.raises(SecretParsingError) as exc_info,
+        ):
+            kubeseal.parse_existing_secret("malformed.yaml")
+
+        assert "malformed YAML" in str(exc_info.value)
+
 
 class TestKubesealDetachedMode:
     """Tests for detached mode operations."""

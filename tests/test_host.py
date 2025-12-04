@@ -23,6 +23,12 @@ class TestHostPlatformDetection:
             result = Host._get_cpu_type()
             assert result == "arm64"
 
+    def test_get_cpu_type_aarch64(self):
+        """Test detection of aarch64 CPU (common Linux ARM variant)."""
+        with patch("platform.machine", return_value="aarch64"):
+            result = Host._get_cpu_type()
+            assert result == "arm64"
+
     def test_get_cpu_type_unsupported(self):
         """Test error on unsupported CPU architecture."""
         with patch("platform.machine", return_value="i386"):

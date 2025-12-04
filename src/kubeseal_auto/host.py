@@ -52,7 +52,7 @@ class Host:
         match platform.machine():
             case "x86_64":
                 return "amd64"
-            case "arm64":
+            case "arm64" | "aarch64":
                 return "arm64"
             case _:
                 raise UnsupportedPlatformError(f"Unsupported CPU architecture: {platform.machine()}")
