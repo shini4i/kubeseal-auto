@@ -60,7 +60,6 @@ class Kubeseal:
             self.detached_mode = True
             self.certificate = certificate
         else:
-            home_dir = os.path.expanduser("~")
             self.cluster = Cluster(select_context=select_context)
             self.controller_name = self.cluster.get_controller_name()
             self.controller_namespace = self.cluster.get_controller_namespace()
@@ -70,7 +69,7 @@ class Kubeseal:
 
             try:
                 self.cluster.ensure_kubeseal_version(version)
-                self.binary = f"{home_dir}/bin/kubeseal-{version}"
+                self.binary = self.cluster.get_kubeseal_binary_path(version)
             except BinaryNotFoundError:
                 click.echo("==> Falling back to the default kubeseal binary")
 

@@ -150,6 +150,17 @@ class Cluster:
         """
         self.host.ensure_kubeseal_binary(version=version)
 
+    def get_kubeseal_binary_path(self, version: str) -> str:
+        """Get the path to the kubeseal binary for the specified version.
+
+        Args:
+            version: The version of kubeseal.
+
+        Returns:
+            The full path to the kubeseal binary.
+        """
+        return self.host.get_binary_path(version=version)
+
     def get_controller_name(self) -> str:
         """Get the SealedSecrets controller name.
 

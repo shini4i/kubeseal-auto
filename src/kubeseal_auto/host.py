@@ -31,7 +31,11 @@ class Host:
     def __init__(self) -> None:
         """Initialize Host with platform detection."""
         self.base_url: str = "https://github.com/bitnami-labs/sealed-secrets/releases/download"
-        self.bin_location: str = f"{os.path.expanduser('~')}/bin"
+        self.bin_location: str = os.path.join(
+            os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")),
+            "kubeseal-auto",
+            "bin",
+        )
         self.cpu_type: str = self._get_cpu_type()
         self.system: str = self._get_system_type()
 
@@ -101,6 +105,18 @@ class Host:
         os.rename(f"{self.bin_location}/kubeseal", f"{self.bin_location}/kubeseal-{version}")
         os.remove(local_path)
 
+    def get_binary_path(self, version: str) -> str:
+        """Get the path to the kubeseal binary for the specified version.
+
+        Args:
+            version: The version of kubeseal (may include 'v' prefix).
+
+        Returns:
+            The full path to the kubeseal binary.
+        """
+        version = version.split("v")[-1]
+        return f"{self.bin_location}/kubeseal-{version}"
+
     def ensure_kubeseal_binary(self, version: str) -> None:
         """Ensure the kubeseal binary for the specified version exists.
 
@@ -113,6 +129,7 @@ class Host:
             BinaryNotFoundError: If the binary cannot be downloaded.
         """
         version = version.split("v")[-1]
-        if not os.path.exists(f"{self.bin_location}/kubeseal-{version}"):
-            click.echo(f"kubeseal binary not found at {self.bin_location}/kubeseal-{version}")
+        binary_path = self.get_binary_path(version)
+        if not os.path.exists(binary_path):
+            click.echo(f"kubeseal binary not found at {binary_path}")
             self._download_kubeseal_binary(version)
