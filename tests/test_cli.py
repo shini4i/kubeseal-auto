@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+import click
 import pytest
 from click.testing import CliRunner
 
@@ -66,6 +67,7 @@ class TestCliDetachedMode:
 
             result = runner.invoke(cli, ["--cert", "test-cert.crt"])
 
+            assert result.exit_code == 0
             mock_kubeseal.assert_called_once_with(certificate="test-cert.crt", select_context=False)
 
 
@@ -82,6 +84,7 @@ class TestCliFetch:
 
             result = runner.invoke(cli, ["--fetch"])
 
+            assert result.exit_code == 0
             mock_instance.fetch_certificate.assert_called_once()
 
 
@@ -98,6 +101,7 @@ class TestCliBackup:
 
             result = runner.invoke(cli, ["--backup"])
 
+            assert result.exit_code == 0
             mock_instance.backup.assert_called_once()
 
 
@@ -114,6 +118,7 @@ class TestCliReencrypt:
 
             result = runner.invoke(cli, ["--re-encrypt", "/path/to/secrets"])
 
+            assert result.exit_code == 0
             mock_instance.reencrypt.assert_called_once_with(src="/path/to/secrets")
 
 
@@ -133,6 +138,7 @@ class TestCliEdit:
 
             result = runner.invoke(cli, ["--edit", "secret.yaml"])
 
+            assert result.exit_code == 0
             mock_edit.assert_called_once()
 
 
@@ -153,6 +159,7 @@ class TestCliDebug:
 
             result = runner.invoke(cli, ["--debug"])
 
+            assert result.exit_code == 0
             # ic.disable() should not be called when debug is enabled
             mock_ic.disable.assert_not_called()
 
@@ -227,7 +234,7 @@ class TestEditSecret:
         mock_kubeseal = MagicMock()
         mock_kubeseal.parse_existing_secret.side_effect = SecretParsingError("File not found")
 
-        with pytest.raises(Exception):  # ClickException
+        with pytest.raises(click.ClickException, match="File not found"):
             edit_secret(mock_kubeseal, "nonexistent.yaml")
 
     def test_edit_secret_empty_file(self):
@@ -235,7 +242,7 @@ class TestEditSecret:
         mock_kubeseal = MagicMock()
         mock_kubeseal.parse_existing_secret.return_value = None
 
-        with pytest.raises(Exception):  # ClickException
+        with pytest.raises(click.ClickException, match="empty"):
             edit_secret(mock_kubeseal, "empty.yaml")
 
 
@@ -255,4 +262,5 @@ class TestCliSelect:
 
             result = runner.invoke(cli, ["--select"])
 
+            assert result.exit_code == 0
             mock_kubeseal.assert_called_once_with(select_context=True)

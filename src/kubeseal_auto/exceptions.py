@@ -13,8 +13,6 @@ class KubesealError(Exception):
     except clause if desired.
     """
 
-    pass
-
 
 class ClusterConnectionError(KubesealError):
     """Raised when connection to the Kubernetes cluster fails.
@@ -24,8 +22,6 @@ class ClusterConnectionError(KubesealError):
     - The cluster is unreachable
     - Authentication fails
     """
-
-    pass
 
 
 class ControllerNotFoundError(KubesealError):
@@ -37,8 +33,6 @@ class ControllerNotFoundError(KubesealError):
     - The user doesn't have permission to list services
     """
 
-    pass
-
 
 class BinaryNotFoundError(KubesealError):
     """Raised when a required binary (kubeseal, kubectl) is not found.
@@ -49,8 +43,6 @@ class BinaryNotFoundError(KubesealError):
     - The required version cannot be downloaded
     """
 
-    pass
-
 
 class UnsupportedPlatformError(KubesealError):
     """Raised when the current platform is not supported.
@@ -59,8 +51,6 @@ class UnsupportedPlatformError(KubesealError):
     - Operating systems: Linux, macOS (Darwin)
     - CPU architectures: x86_64 (amd64), arm64
     """
-
-    pass
 
 
 class SecretParsingError(KubesealError):
@@ -71,5 +61,3 @@ class SecretParsingError(KubesealError):
     - The file is not valid YAML
     - The YAML does not represent a valid Kubernetes secret
     """
-
-    pass

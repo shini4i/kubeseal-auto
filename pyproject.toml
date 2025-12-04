@@ -74,5 +74,3 @@ module = [
     "icecream.*",
     "colorama.*",
 ]
-ignore_missing_imports = true
-ignore_errors = true

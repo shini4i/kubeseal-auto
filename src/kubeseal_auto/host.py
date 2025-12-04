@@ -95,9 +95,10 @@ class Host:
             os.makedirs(self.bin_location)
 
         click.echo(f"Downloading {url}")
-        with requests.get(url) as r:
+        with requests.get(url, timeout=60) as r:
             if r.status_code == 404:
                 raise BinaryNotFoundError(f"kubeseal version {version} is not available for download")
+            r.raise_for_status()
             with open(local_path, "wb") as f:
                 f.write(r.content)
 

@@ -86,12 +86,12 @@ class Kubeseal:
         """
         secrets: list[Path] = []
         for path in Path(src).rglob("*.yaml"):
-            secret = self.parse_existing_secret(str(path.absolute()))
             try:
+                secret = self.parse_existing_secret(str(path.absolute()))
                 if secret is not None and secret["kind"] == "SealedSecret":
                     secrets.append(path.absolute())
-            except KeyError:
-                # Not a SealedSecret, skip
+            except (KeyError, SecretParsingError):
+                # Not a SealedSecret or invalid file, skip
                 continue
         return secrets
 
@@ -203,7 +203,7 @@ class Kubeseal:
 
         docker_server = questionary.text("Provide docker-server").unsafe_ask()
         docker_username = questionary.text("Provide docker-username").unsafe_ask()
-        docker_password = questionary.text("Provide docker-password").unsafe_ask()
+        docker_password = questionary.password("Provide docker-password").unsafe_ask()
 
         cmd: list[str] = [
             "kubectl",
@@ -220,7 +220,7 @@ class Kubeseal:
             "-o",
             "yaml",
         ]
-        ic(cmd)
+        # Don't log cmd as it contains sensitive docker credentials
 
         with open(self.temp_file.name, "w") as f:
             subprocess.run(cmd, stdout=f, check=True)
@@ -336,7 +336,7 @@ class Kubeseal:
         filtered_options = [opt for opt in options_list if not opt.startswith("SkipDryRunOnMissingResource=")]
 
         # Add the desired option to the beginning of the list.
-        final_options = [skip_option_value] + filtered_options
+        final_options = [skip_option_value, *filtered_options]
 
         annotations[sync_key] = ",".join(final_options)
 
@@ -351,7 +351,7 @@ class Kubeseal:
         """
         click.echo("===> Downloading certificate for kubeseal...")
         cmd: list[str] = [
-            "kubeseal",
+            self.binary,
             "--controller-namespace",
             self.controller_namespace,
             f"--context={self.current_context_name}",
@@ -375,11 +375,16 @@ class Kubeseal:
         """
         for secret in self._find_sealed_secrets(src):
             click.echo(f"Re-encrypting {secret}")
-            tmp_file = f"{secret}_tmp"
-            os.rename(secret, tmp_file)
+            backup_file = f"{secret}_backup"
+            output_tmp = f"{secret}_new"
+
+            # Create backup of original file
+            import shutil
+
+            shutil.copy2(secret, backup_file)
 
             cmd: list[str] = [
-                "kubeseal",
+                self.binary,
                 "--format=yaml",
                 f"--context={self.current_context_name}",
                 "--controller-namespace",
@@ -390,10 +395,20 @@ class Kubeseal:
             ]
             ic(cmd)
 
-            with open(tmp_file) as stdin_f, open(str(secret), "w") as stdout_f:
-                subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, check=True)
+            try:
+                with open(str(secret)) as stdin_f, open(output_tmp, "w") as stdout_f:
+                    subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, check=True)
+                # Atomic replace on success
+                os.replace(output_tmp, str(secret))
+                os.remove(backup_file)
+            except subprocess.CalledProcessError:
+                # Restore from backup on failure
+                if os.path.exists(backup_file):
+                    os.replace(backup_file, str(secret))
+                if os.path.exists(output_tmp):
+                    os.remove(output_tmp)
+                raise
 
-            os.remove(tmp_file)
             self.append_argo_annotation(str(secret))
 
     def backup(self) -> None:

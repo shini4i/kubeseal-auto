@@ -89,11 +89,16 @@ class TestKubesealSecretCreation:
 
         with (
             patch("questionary.text") as mock_questionary_text,
+            patch("questionary.password") as mock_questionary_password,
             patch("builtins.open", mock_open()),
         ):
             mock_questionary_text_instance = MagicMock()
             mock_questionary_text.return_value = mock_questionary_text_instance
-            mock_questionary_text_instance.unsafe_ask.side_effect = [docker_server, docker_username, docker_password]
+            mock_questionary_text_instance.unsafe_ask.side_effect = [docker_server, docker_username]
+
+            mock_questionary_password_instance = MagicMock()
+            mock_questionary_password.return_value = mock_questionary_password_instance
+            mock_questionary_password_instance.unsafe_ask.return_value = docker_password
 
             kubeseal.create_regcred_secret(secret_params)
 
