@@ -1,3 +1,5 @@
+"""Tests for kubeseal.py module."""
+
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
@@ -6,214 +8,258 @@ from kubeseal_auto.exceptions import SecretParsingError
 from kubeseal_auto.kubeseal import Kubeseal
 
 
-@patch("subprocess.run")
-@patch("kubernetes.config.load_kube_config")
-@patch("kubernetes.config.list_kube_config_contexts")
-@patch("kubernetes.client.AppsV1Api.list_deployment_for_all_namespaces")
-@patch("kubernetes.client.CoreV1Api.list_namespace")
-@patch("kubeseal_auto.cluster.Cluster._find_sealed_secrets_controller")
-def test_create_generic_secret(
-    mock_find_controller,
-    mock_list_namespace,
-    mock_list_deployment,
-    mock_list_kube_config_contexts,
-    mock_load_kube_config,
-    mock_subprocess_run,
-):
-    mock_list_kube_config_contexts.return_value = ([{"name": "context1"}], {"name": "context2"})
-    mock_list_deployment.return_value.items = []
-    mock_list_namespace.return_value.items = []
-    mock_find_controller.return_value = {
-        "name": "sealed-secrets-controller",
-        "namespace": "kube-system",
-        "version": "v0.12.0",
-    }
-    kubeseal = Kubeseal(select_context=False)
-    secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
-    secrets_input = "key1=value1\nkey2=value2"
+class TestKubesealSecretCreation:
+    """Tests for secret creation methods."""
 
-    with patch("questionary.text") as mock_questionary_text, patch("builtins.open", mock_open()):
-        mock_questionary_text.return_value.unsafe_ask.return_value = secrets_input
-        kubeseal.create_generic_secret(secret_params)
-        mock_subprocess_run.assert_called_once()
-        cmd = mock_subprocess_run.call_args[0][0]
-        assert cmd[0] == "kubectl"
-        assert cmd[1] == "create"
-        assert cmd[2] == "secret"
-        assert cmd[3] == "generic"
-        assert cmd[4] == "test-secret"
-        assert "--namespace" in cmd
-        assert "default" in cmd
-        assert "--from-literal=key1=value1" in cmd
-        assert "--from-literal=key2=value2" in cmd
+    def test_create_generic_secret(self, kubeseal_mocks, mock_subprocess):
+        """Test creating a generic secret with key-value pairs."""
+        kubeseal = Kubeseal(select_context=False)
+        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
+        secrets_input = "key1=value1\nkey2=value2"
 
+        with (
+            patch("questionary.text") as mock_questionary_text,
+            patch("builtins.open", mock_open()),
+        ):
+            mock_questionary_text.return_value.unsafe_ask.return_value = secrets_input
+            kubeseal.create_generic_secret(secret_params)
 
-@patch("subprocess.run")
-@patch("kubernetes.config.load_kube_config")
-@patch("kubernetes.config.list_kube_config_contexts")
-@patch("kubernetes.client.AppsV1Api.list_deployment_for_all_namespaces")
-@patch("kubernetes.client.CoreV1Api.list_namespace")
-@patch("kubeseal_auto.cluster.Cluster._find_sealed_secrets_controller")
-def test_create_tls_secret(
-    mock_find_controller,
-    mock_list_namespace,
-    mock_list_deployment,
-    mock_list_kube_config_contexts,
-    mock_load_kube_config,
-    mock_subprocess_run,
-):
-    mock_list_kube_config_contexts.return_value = ([{"name": "context1"}], {"name": "context2"})
-    mock_list_deployment.return_value.items = []
-    mock_list_namespace.return_value.items = []
-    mock_find_controller.return_value = {
-        "name": "sealed-secrets-controller",
-        "namespace": "kube-system",
-        "version": "v0.12.0",
-    }
-    kubeseal = Kubeseal(select_context=False)
-    secret_params = {"name": "test-tls-secret", "namespace": "default", "type": "tls"}
+            mock_subprocess.assert_called_once()
+            cmd = mock_subprocess.call_args[0][0]
+            assert cmd[0] == "kubectl"
+            assert cmd[1] == "create"
+            assert cmd[2] == "secret"
+            assert cmd[3] == "generic"
+            assert cmd[4] == "test-secret"
+            assert "--namespace" in cmd
+            assert "default" in cmd
+            assert "--from-literal=key1=value1" in cmd
+            assert "--from-literal=key2=value2" in cmd
 
-    with patch("builtins.open", mock_open()):
-        kubeseal.create_tls_secret(secret_params)
-        mock_subprocess_run.assert_called_once()
-        cmd = mock_subprocess_run.call_args[0][0]
-        assert cmd[0] == "kubectl"
-        assert cmd[1] == "create"
-        assert cmd[2] == "secret"
-        assert cmd[3] == "tls"
-        assert cmd[4] == "test-tls-secret"
-        assert "--namespace" in cmd
-        assert "default" in cmd
-        assert "--key" in cmd
-        assert "tls.key" in cmd
-        assert "--cert" in cmd
-        assert "tls.crt" in cmd
-        assert "--dry-run=client" in cmd
-        assert "-o" in cmd
-        assert "yaml" in cmd
+    def test_create_generic_secret_with_file(self, kubeseal_mocks, mock_subprocess):
+        """Test creating a generic secret from file."""
+        kubeseal = Kubeseal(select_context=False)
+        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
+        secrets_input = "config.json"
 
+        with (
+            patch("questionary.text") as mock_questionary_text,
+            patch("builtins.open", mock_open()),
+        ):
+            mock_questionary_text.return_value.unsafe_ask.return_value = secrets_input
+            kubeseal.create_generic_secret(secret_params)
 
-@patch("subprocess.run")
-@patch("kubernetes.config.load_kube_config")
-@patch("kubernetes.config.list_kube_config_contexts")
-@patch("kubernetes.client.AppsV1Api.list_deployment_for_all_namespaces")
-@patch("kubernetes.client.CoreV1Api.list_namespace")
-@patch("kubeseal_auto.cluster.Cluster._find_sealed_secrets_controller")
-def test_create_regcred_secret(
-    mock_find_controller,
-    mock_list_namespace,
-    mock_list_deployment,
-    mock_list_kube_config_contexts,
-    mock_load_kube_config,
-    mock_subprocess_run,
-):
-    mock_list_kube_config_contexts.return_value = ([{"name": "context1"}], {"name": "context2"})
-    mock_list_deployment.return_value.items = []
-    mock_list_namespace.return_value.items = []
-    mock_find_controller.return_value = {
-        "name": "sealed-secrets-controller",
-        "namespace": "kube-system",
-        "version": "v0.12.0",
-    }
-    kubeseal = Kubeseal(select_context=False)
-    secret_params = {"name": "test-regcred-secret", "namespace": "default", "type": "docker-registry"}
+            mock_subprocess.assert_called_once()
+            cmd = mock_subprocess.call_args[0][0]
+            assert "--from-file=config.json" in cmd
 
-    docker_server = "https://index.docker.io/v1/"
-    docker_username = "testuser"
-    docker_password = "testpassword"
+    def test_create_tls_secret(self, kubeseal_mocks, mock_subprocess):
+        """Test creating a TLS secret."""
+        kubeseal = Kubeseal(select_context=False)
+        secret_params = {"name": "test-tls-secret", "namespace": "default", "type": "tls"}
 
-    with patch("questionary.text") as mock_questionary_text, patch("builtins.open", mock_open()):
-        mock_questionary_text_instance = MagicMock()
-        mock_questionary_text.return_value = mock_questionary_text_instance
-        mock_questionary_text_instance.unsafe_ask.side_effect = [docker_server, docker_username, docker_password]
+        with patch("builtins.open", mock_open()):
+            kubeseal.create_tls_secret(secret_params)
 
-        kubeseal.create_regcred_secret(secret_params)
-        mock_subprocess_run.assert_called_once()
-        cmd = mock_subprocess_run.call_args[0][0]
-        assert cmd[0] == "kubectl"
-        assert cmd[1] == "create"
-        assert cmd[2] == "secret"
-        assert cmd[3] == "docker-registry"
-        assert cmd[4] == "test-regcred-secret"
-        assert "--namespace" in cmd
-        assert "default" in cmd
-        assert f"--docker-server={docker_server}" in cmd
-        assert f"--docker-username={docker_username}" in cmd
-        assert f"--docker-password={docker_password}" in cmd
-        assert "--dry-run=client" in cmd
+            mock_subprocess.assert_called_once()
+            cmd = mock_subprocess.call_args[0][0]
+            assert cmd[0] == "kubectl"
+            assert cmd[1] == "create"
+            assert cmd[2] == "secret"
+            assert cmd[3] == "tls"
+            assert cmd[4] == "test-tls-secret"
+            assert "--namespace" in cmd
+            assert "default" in cmd
+            assert "--key" in cmd
+            assert "tls.key" in cmd
+            assert "--cert" in cmd
+            assert "tls.crt" in cmd
+            assert "--dry-run=client" in cmd
+            assert "-o" in cmd
+            assert "yaml" in cmd
+
+    def test_create_regcred_secret(self, kubeseal_mocks, mock_subprocess):
+        """Test creating a docker-registry secret."""
+        kubeseal = Kubeseal(select_context=False)
+        secret_params = {"name": "test-regcred-secret", "namespace": "default", "type": "docker-registry"}
+
+        docker_server = "https://index.docker.io/v1/"
+        docker_username = "testuser"
+        docker_password = "testpassword"
+
+        with (
+            patch("questionary.text") as mock_questionary_text,
+            patch("builtins.open", mock_open()),
+        ):
+            mock_questionary_text_instance = MagicMock()
+            mock_questionary_text.return_value = mock_questionary_text_instance
+            mock_questionary_text_instance.unsafe_ask.side_effect = [docker_server, docker_username, docker_password]
+
+            kubeseal.create_regcred_secret(secret_params)
+
+            mock_subprocess.assert_called_once()
+            cmd = mock_subprocess.call_args[0][0]
+            assert cmd[0] == "kubectl"
+            assert cmd[1] == "create"
+            assert cmd[2] == "secret"
+            assert cmd[3] == "docker-registry"
+            assert cmd[4] == "test-regcred-secret"
+            assert "--namespace" in cmd
+            assert "default" in cmd
+            assert f"--docker-server={docker_server}" in cmd
+            assert f"--docker-username={docker_username}" in cmd
+            assert f"--docker-password={docker_password}" in cmd
+            assert "--dry-run=client" in cmd
 
 
-@patch("subprocess.run")
-@patch("kubernetes.config.load_kube_config")
-@patch("kubernetes.config.list_kube_config_contexts")
-@patch("kubernetes.client.AppsV1Api.list_deployment_for_all_namespaces")
-@patch("kubernetes.client.CoreV1Api.list_namespace")
-@patch("kubeseal_auto.cluster.Cluster._find_sealed_secrets_controller")
-def test_seal(
-    mock_find_controller,
-    mock_list_namespace,
-    mock_list_deployment,
-    mock_list_kube_config_contexts,
-    mock_load_kube_config,
-    mock_subprocess_run,
-):
-    mock_list_kube_config_contexts.return_value = ([{"name": "context1"}], {"name": "context2"})
-    mock_list_deployment.return_value.items = []
-    mock_list_namespace.return_value.items = []
-    mock_find_controller.return_value = {
-        "name": "sealed-secrets-controller",
-        "namespace": "kube-system",
-        "version": "v0.12.0",
-    }
-    kubeseal = Kubeseal(select_context=False)
-    secret_name = "test-secret"
+class TestKubesealSealing:
+    """Tests for secret sealing methods."""
 
-    # Mock the open function to simulate the presence of the file
-    with patch("builtins.open", mock_open(read_data="apiVersion: v1\nkind: Secret\nmetadata:\n  name: test-secret")):
-        kubeseal.seal(secret_name)
-        mock_subprocess_run.assert_called_once()
-        cmd = mock_subprocess_run.call_args[0][0]
-        assert kubeseal.binary in cmd[0]
-        assert "--format=yaml" in cmd
-        assert f"--context={kubeseal.current_context_name}" in cmd
-        assert f"--controller-namespace={kubeseal.controller_namespace}" in cmd
-        assert f"--controller-name={kubeseal.controller_name}" in cmd
+    def test_seal(self, kubeseal_mocks, mock_subprocess):
+        """Test sealing a secret."""
+        kubeseal = Kubeseal(select_context=False)
+        secret_name = "test-secret"
 
+        with patch(
+            "builtins.open", mock_open(read_data="apiVersion: v1\nkind: Secret\nmetadata:\n  name: test-secret")
+        ):
+            kubeseal.seal(secret_name)
 
-@patch("kubeseal_auto.cluster.Cluster.get_all_namespaces", return_value=["default", "kube-system"])
-@patch("kubernetes.config.load_kube_config")
-@patch("kubernetes.config.list_kube_config_contexts")
-@patch("kubeseal_auto.cluster.Cluster._find_sealed_secrets_controller")
-def test_parse_existing_secret_success(
-    mock_find_controller, mock_list_kube_config_contexts, mock_load_kube_config, mock_get_all_namespaces
-):
-    mock_list_kube_config_contexts.return_value = ([{"name": "context1"}], {"name": "context2"})
-    mock_find_controller.return_value = {
-        "name": "sealed-secrets-controller",
-        "namespace": "kube-system",
-        "version": "v0.12.0",
-    }
-    kubeseal = Kubeseal(select_context=False)
-    with patch("builtins.open", mock_open(read_data="apiVersion: v1\nkind: Secret\nmetadata:\n  name: test-secret")):
-        secret = kubeseal.parse_existing_secret("test-secret.yaml")
-        assert secret["kind"] == "Secret"
-        assert secret["metadata"]["name"] == "test-secret"
+            mock_subprocess.assert_called_once()
+            cmd = mock_subprocess.call_args[0][0]
+            assert kubeseal.binary in cmd[0]
+            assert "--format=yaml" in cmd
+            assert f"--context={kubeseal.current_context_name}" in cmd
+            assert f"--controller-namespace={kubeseal.controller_namespace}" in cmd
+            assert f"--controller-name={kubeseal.controller_name}" in cmd
+
+    def test_seal_detached_mode(self, mock_subprocess):
+        """Test sealing a secret in detached mode."""
+        kubeseal = Kubeseal(select_context=False, certificate="test-cert.crt")
+        secret_name = "test-secret"
+
+        with patch(
+            "builtins.open", mock_open(read_data="apiVersion: v1\nkind: Secret\nmetadata:\n  name: test-secret")
+        ):
+            kubeseal.seal(secret_name)
+
+            mock_subprocess.assert_called_once()
+            cmd = mock_subprocess.call_args[0][0]
+            assert "--cert=test-cert.crt" in cmd
+
+    def test_merge(self, kubeseal_mocks, mock_subprocess, sample_secret_yaml):
+        """Test merging secrets into an existing sealed secret."""
+        kubeseal = Kubeseal(select_context=False)
+        secret_name = "existing-secret.yaml"
+
+        with patch("builtins.open", mock_open(read_data=sample_secret_yaml)):
+            kubeseal.merge(secret_name)
+
+            mock_subprocess.assert_called_once()
+            cmd = mock_subprocess.call_args[0][0]
+            assert "--merge-into" in cmd
+            assert secret_name in cmd
 
 
-@patch("kubeseal_auto.cluster.Cluster.get_all_namespaces", return_value=["default", "kube-system"])
-@patch("kubernetes.config.load_kube_config")
-@patch("kubernetes.config.list_kube_config_contexts")
-@patch("kubeseal_auto.cluster.Cluster._find_sealed_secrets_controller")
-def test_parse_existing_secret_file_not_found(
-    mock_find_controller, mock_list_kube_config_contexts, mock_load_kube_config, mock_get_all_namespaces
-):
-    mock_list_kube_config_contexts.return_value = ([{"name": "context1"}], {"name": "context2"})
-    mock_find_controller.return_value = {
-        "name": "sealed-secrets-controller",
-        "namespace": "kube-system",
-        "version": "v0.12.0",
-    }
-    kubeseal = Kubeseal(select_context=False)
-    with pytest.raises(SecretParsingError) as exc_info:
-        kubeseal.parse_existing_secret("nonexistent-secret.yaml")
-    assert "does not exist" in str(exc_info.value)
+class TestKubesealParsing:
+    """Tests for secret parsing methods."""
+
+    def test_parse_existing_secret_success(self, kubeseal_mocks, sample_secret_yaml):
+        """Test successfully parsing an existing secret."""
+        kubeseal = Kubeseal(select_context=False)
+
+        with patch("builtins.open", mock_open(read_data=sample_secret_yaml)):
+            secret = kubeseal.parse_existing_secret("test-secret.yaml")
+
+            assert secret["kind"] == "Secret"
+            assert secret["metadata"]["name"] == "test-secret"
+            assert secret["metadata"]["namespace"] == "default"
+
+    def test_parse_existing_secret_file_not_found(self, kubeseal_mocks):
+        """Test parsing a non-existent secret file."""
+        kubeseal = Kubeseal(select_context=False)
+
+        with pytest.raises(SecretParsingError) as exc_info:
+            kubeseal.parse_existing_secret("nonexistent-secret.yaml")
+
+        assert "does not exist" in str(exc_info.value)
+
+    def test_parse_existing_secret_multi_document(self, kubeseal_mocks):
+        """Test parsing a multi-document YAML file raises error."""
+        kubeseal = Kubeseal(select_context=False)
+        multi_doc_yaml = "---\napiVersion: v1\nkind: Secret\n---\napiVersion: v1\nkind: Secret\n"
+
+        with (
+            patch("builtins.open", mock_open(read_data=multi_doc_yaml)),
+            pytest.raises(SecretParsingError) as exc_info,
+        ):
+            kubeseal.parse_existing_secret("multi-doc.yaml")
+
+        assert "multiple YAML documents" in str(exc_info.value)
+
+    def test_parse_existing_secret_empty_file(self, kubeseal_mocks):
+        """Test parsing an empty file returns None."""
+        kubeseal = Kubeseal(select_context=False)
+
+        with patch("builtins.open", mock_open(read_data="")):
+            result = kubeseal.parse_existing_secret("empty.yaml")
+
+        assert result is None
+
+
+class TestKubesealDetachedMode:
+    """Tests for detached mode operations."""
+
+    def test_init_detached_mode(self):
+        """Test initializing Kubeseal in detached mode."""
+        kubeseal = Kubeseal(select_context=False, certificate="test-cert.crt")
+
+        assert kubeseal.detached_mode is True
+        assert kubeseal.certificate == "test-cert.crt"
+        assert kubeseal.binary == "kubeseal"
+
+    def test_init_connected_mode(self, kubeseal_mocks):
+        """Test initializing Kubeseal in connected mode."""
+        kubeseal = Kubeseal(select_context=False)
+
+        assert kubeseal.detached_mode is False
+        assert kubeseal.controller_name == "sealed-secrets-controller"
+        assert kubeseal.controller_namespace == "kube-system"
+
+
+class TestKubesealCollectParameters:
+    """Tests for parameter collection."""
+
+    def test_collect_parameters_connected_mode(self, kubeseal_mocks):
+        """Test collecting parameters in connected mode."""
+        kubeseal = Kubeseal(select_context=False)
+
+        with (
+            patch("questionary.select") as mock_select,
+            patch("questionary.text") as mock_text,
+        ):
+            mock_select.return_value.unsafe_ask.side_effect = ["default", "generic"]
+            mock_text.return_value.unsafe_ask.return_value = "my-secret"
+
+            params = kubeseal.collect_parameters()
+
+            assert params["namespace"] == "default"
+            assert params["type"] == "generic"
+            assert params["name"] == "my-secret"
+
+    def test_collect_parameters_detached_mode(self):
+        """Test collecting parameters in detached mode."""
+        kubeseal = Kubeseal(select_context=False, certificate="test-cert.crt")
+
+        with (
+            patch("questionary.select") as mock_select,
+            patch("questionary.text") as mock_text,
+        ):
+            mock_text.return_value.unsafe_ask.side_effect = ["custom-namespace", "my-secret"]
+            mock_select.return_value.unsafe_ask.return_value = "generic"
+
+            params = kubeseal.collect_parameters()
+
+            assert params["namespace"] == "custom-namespace"
+            assert params["type"] == "generic"
+            assert params["name"] == "my-secret"
