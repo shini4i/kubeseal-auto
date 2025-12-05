@@ -190,6 +190,17 @@ class TestClusterProperties:
         # Version is "v0.26.0", normalize_version removes "v" prefix
         assert cluster.controller_version == "0.26.0"
 
+    def test_controller_version_empty(self, mock_kube_contexts, mock_kube_config, mock_namespaces):
+        """Test controller_version returns empty string when version label is missing."""
+        with patch.object(Cluster, "_find_sealed_secrets_controller") as mock_find:
+            mock_find.return_value = ControllerInfo(
+                name="sealed-secrets",
+                namespace="kube-system",
+                version="",  # Empty version label
+            )
+            cluster = Cluster(select_context=False)
+            assert cluster.controller_version == ""
+
     def test_context_attribute(self, mock_kube_contexts, mock_kube_config, mock_controller, mock_namespaces):
         """Test context attribute access."""
         cluster = Cluster(select_context=False)

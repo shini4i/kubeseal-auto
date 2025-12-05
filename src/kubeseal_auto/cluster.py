@@ -206,10 +206,16 @@ class Cluster:
     def controller_version(self) -> str:
         """The controller version without the 'v' prefix.
 
+        Returns:
+            The normalized version string, or an empty string if the
+            controller lacks the app.kubernetes.io/version label.
+
         Raises:
-            ValueError: If the version format is invalid.
+            ValueError: If the version is present but has an invalid format.
 
         """
+        if not self.controller.version:
+            return ""
         return normalize_version(self.controller.version)
 
     def __repr__(self) -> str:

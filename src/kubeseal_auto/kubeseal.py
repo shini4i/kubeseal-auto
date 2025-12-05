@@ -99,18 +99,15 @@ class Kubeseal:
             self.namespaces_list = self.cluster.get_all_namespaces()
             version = self.cluster.controller_version
 
-            try:
-                self.cluster.ensure_kubeseal_version(version)
-                self.binary = self.cluster.get_kubeseal_binary_path(version)
-            except BinaryNotFoundError:
-                system_binary = shutil.which("kubeseal")
-                if system_binary is None:
-                    raise BinaryNotFoundError(
-                        "kubeseal binary not found. Please install kubeseal or ensure it's in your PATH. "
-                        "See: https://github.com/bitnami-labs/sealed-secrets#installation"
-                    ) from None
-                console.warning("Falling back to the default kubeseal binary")
-                self.binary = system_binary
+            if version:
+                try:
+                    self.cluster.ensure_kubeseal_version(version)
+                    self.binary = self.cluster.get_kubeseal_binary_path(version)
+                except BinaryNotFoundError:
+                    self._fallback_to_system_binary()
+            else:
+                console.warning("Controller version label not found")
+                self._fallback_to_system_binary()
 
         # Create temp file with delete=False for Windows compatibility
         # Close immediately to avoid file locking issues when reopening
@@ -153,6 +150,22 @@ class Kubeseal:
             temp_path = Path(self._temp_file_path)
             with contextlib.suppress(OSError):
                 temp_path.unlink(missing_ok=True)
+
+    def _fallback_to_system_binary(self) -> None:
+        """Fall back to system-installed kubeseal binary.
+
+        Raises:
+            BinaryNotFoundError: If kubeseal is not found in PATH.
+
+        """
+        system_binary = shutil.which("kubeseal")
+        if system_binary is None:
+            raise BinaryNotFoundError(
+                "kubeseal binary not found. Please install kubeseal or ensure it's in your PATH. "
+                "See: https://github.com/bitnami-labs/sealed-secrets#installation"
+            )
+        console.warning("Falling back to the default kubeseal binary")
+        self.binary = system_binary
 
     def _build_kubeseal_cmd(self, extra_args: list[str] | None = None) -> list[str]:
         """Build a kubeseal command with common flags.
