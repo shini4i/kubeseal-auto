@@ -72,9 +72,9 @@ class TestHostInit:
 
             assert host.cpu_type == "amd64"
             assert host.system == "linux"
-            # Verify XDG-compliant path structure
+            # Verify XDG-compliant path structure (must match Host.__init__ exactly)
             expected_xdg_base = os.environ.get(
-                "XDG_DATA_HOME", os.path.join(os.path.expanduser("~"), ".local", "share")
+                "XDG_DATA_HOME", os.path.expanduser("~/.local/share")
             )
             expected_bin_path = os.path.join(expected_xdg_base, "kubeseal-auto", "bin")
             assert host.bin_location == expected_bin_path

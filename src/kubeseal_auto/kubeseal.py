@@ -400,7 +400,13 @@ class Kubeseal:
 
         This certificate can be used in the future to encrypt secrets
         without direct access to the cluster (detached mode).
+
+        Raises:
+            click.ClickException: If called in detached mode.
         """
+        if self.cluster is None:
+            raise click.ClickException("Fetching certificate is not available in detached mode")
+
         click.echo("===> Downloading certificate for kubeseal...")
         cmd: list[str] = [
             self.binary,
