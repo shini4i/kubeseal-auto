@@ -85,7 +85,7 @@ class TestKubesealSecretCreation:
 
         docker_server = "https://index.docker.io/v1/"
         docker_username = "testuser"
-        docker_password = "testpassword"
+        docker_password = "testpassword"  # noqa: S105
 
         with (
             patch("questionary.text") as mock_questionary_text,

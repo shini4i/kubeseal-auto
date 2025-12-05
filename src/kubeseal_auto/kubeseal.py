@@ -23,7 +23,6 @@ from kubeseal_auto.exceptions import BinaryNotFoundError, SecretParsingError
 
 # CLI flag constants for kubectl and kubeseal commands
 _DRY_RUN_CLIENT = "--dry-run=client"
-_OUTPUT_YAML = "-o"
 _FORMAT_YAML = "--format=yaml"
 
 
@@ -213,7 +212,7 @@ class Kubeseal:
             "--namespace",
             secret_params["namespace"],
             _DRY_RUN_CLIENT,
-            _OUTPUT_YAML,
+            "-o",
             "yaml",
         ]
 
@@ -253,7 +252,7 @@ class Kubeseal:
             "--cert",
             "tls.crt",
             _DRY_RUN_CLIENT,
-            _OUTPUT_YAML,
+            "-o",
             "yaml",
         ]
         ic(cmd)
@@ -287,7 +286,7 @@ class Kubeseal:
             f"--docker-username={docker_username}",
             f"--docker-password={docker_password}",
             _DRY_RUN_CLIENT,
-            _OUTPUT_YAML,
+            "-o",
             "yaml",
         ]
         # Don't log cmd as it contains sensitive docker credentials
@@ -325,7 +324,8 @@ class Kubeseal:
             The parsed YAML document as a dictionary, or None if empty.
 
         Raises:
-            SecretParsingError: If the file does not exist or contains multiple documents.
+            SecretParsingError: If the file does not exist, contains multiple
+                documents, or contains malformed/invalid YAML.
         """
         try:
             with open(secret_name) as stream:
@@ -458,7 +458,7 @@ class Kubeseal:
             raise click.ClickException("Backup is not available in detached mode")
 
         secret = self.cluster.find_latest_sealed_secrets_controller_certificate()
-        cmd: list[str] = ["kubectl", "get", "secret", "-n", self.controller_namespace, secret, _OUTPUT_YAML, "yaml"]
+        cmd: list[str] = ["kubectl", "get", "secret", "-n", self.controller_namespace, secret, "-o", "yaml"]
         ic(cmd)
 
         output_file = f"{self.current_context_name}-secret-backup.yaml"
