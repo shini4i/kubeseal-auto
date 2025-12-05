@@ -89,7 +89,7 @@ class TestHostBinaryManagement:
         with (
             patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
             patch("kubeseal_auto.host.platform.system", return_value="Linux"),
-            patch("os.path.exists", return_value=True),
+            patch("kubeseal_auto.host.os.path.exists", return_value=True),
         ):
             host = Host()
 
@@ -102,7 +102,7 @@ class TestHostBinaryManagement:
         with (
             patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
             patch("kubeseal_auto.host.platform.system", return_value="Linux"),
-            patch("os.path.exists", return_value=False),
+            patch("kubeseal_auto.host.os.path.exists", return_value=False),
         ):
             host = Host()
 
@@ -119,7 +119,7 @@ class TestHostBinaryManagement:
         with (
             patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
             patch("kubeseal_auto.host.platform.system", return_value="Linux"),
-            patch("os.path.exists", return_value=False),
+            patch("kubeseal_auto.host.os.path.exists", return_value=False),
         ):
             host = Host()
 
@@ -133,10 +133,9 @@ class TestHostBinaryManagement:
         with (
             patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
             patch("kubeseal_auto.host.platform.system", return_value="Linux"),
-            patch("os.path.exists", return_value=False),
-            patch("os.makedirs"),
-            patch("os.rename"),
-            patch("os.remove"),
+            patch("kubeseal_auto.host.os.path.exists", return_value=False),
+            patch("kubeseal_auto.host.os.makedirs"),
+            patch("kubeseal_auto.host.os.remove"),
         ):
             host = Host()
 
@@ -147,9 +146,9 @@ class TestHostBinaryManagement:
             mock_response.__exit__ = MagicMock(return_value=False)
 
             with (
-                patch("requests.get", return_value=mock_response),
+                patch("kubeseal_auto.host.requests.get", return_value=mock_response),
                 patch("builtins.open", MagicMock()),
-                patch("tarfile.open") as mock_tarfile,
+                patch("kubeseal_auto.host.tarfile.open") as mock_tarfile,
             ):
                 mock_tar = MagicMock()
                 mock_member = MagicMock()
@@ -171,8 +170,8 @@ class TestHostBinaryManagement:
         with (
             patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
             patch("kubeseal_auto.host.platform.system", return_value="Linux"),
-            patch("os.path.exists", return_value=False),
-            patch("os.makedirs"),
+            patch("kubeseal_auto.host.os.path.exists", return_value=False),
+            patch("kubeseal_auto.host.os.makedirs"),
         ):
             host = Host()
 
@@ -182,7 +181,7 @@ class TestHostBinaryManagement:
             mock_response.__exit__ = MagicMock(return_value=False)
 
             with (
-                patch("requests.get", return_value=mock_response),
+                patch("kubeseal_auto.host.requests.get", return_value=mock_response),
                 pytest.raises(BinaryNotFoundError) as exc_info,
             ):
                 host._download_kubeseal_binary("99.99.99")
@@ -199,10 +198,9 @@ class TestHostBinaryManagement:
 
             # First call returns False (bin doesn't exist), second returns True (tar file)
             with (
-                patch("os.path.exists", side_effect=[False, True]),
-                patch("os.makedirs") as mock_makedirs,
-                patch("os.rename"),
-                patch("os.remove"),
+                patch("kubeseal_auto.host.os.path.exists", side_effect=[False, True]),
+                patch("kubeseal_auto.host.os.makedirs") as mock_makedirs,
+                patch("kubeseal_auto.host.os.remove"),
             ):
                 mock_response = MagicMock()
                 mock_response.status_code = 200
@@ -211,9 +209,9 @@ class TestHostBinaryManagement:
                 mock_response.__exit__ = MagicMock(return_value=False)
 
                 with (
-                    patch("requests.get", return_value=mock_response),
+                    patch("kubeseal_auto.host.requests.get", return_value=mock_response),
                     patch("builtins.open", MagicMock()),
-                    patch("tarfile.open") as mock_tarfile,
+                    patch("kubeseal_auto.host.tarfile.open") as mock_tarfile,
                 ):
                     mock_tar = MagicMock()
                     mock_member = MagicMock()
