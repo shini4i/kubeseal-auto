@@ -131,18 +131,20 @@ class Host:
         """Download the kubeseal binary for the specified version.
 
         Args:
-            version: The version of kubeseal to download (without 'v' prefix).
+            version: The version of kubeseal to download (may include 'v' prefix).
 
         Raises:
             BinaryNotFoundError: If the requested version is not available.
+            ValueError: If version format is invalid.
         """
         click.echo("Downloading kubeseal binary")
 
-        url = f"{self.base_url}/v{version}/kubeseal-{version}-{self.system}-{self.cpu_type}.tar.gz"
+        normalized = self._normalize_version(version)
+        url = f"{self.base_url}/v{normalized}/kubeseal-{normalized}-{self.system}-{self.cpu_type}.tar.gz"
         ic(url)
         local_path = os.path.join(
             tempfile.gettempdir(),
-            f"kubeseal-{version}-{self.system}-{self.cpu_type}.tar.gz",
+            f"kubeseal-{normalized}-{self.system}-{self.cpu_type}.tar.gz",
         )
         ic(local_path)
 
@@ -152,13 +154,13 @@ class Host:
         click.echo(f"Downloading {url}")
         with requests.get(url, timeout=60) as r:
             if r.status_code == 404:
-                raise BinaryNotFoundError(f"kubeseal version {version} is not available for download")
+                raise BinaryNotFoundError(f"kubeseal version {normalized} is not available for download")
             r.raise_for_status()
             with open(local_path, "wb") as f:
                 f.write(r.content)
 
         with tarfile.open(local_path, "r:gz") as tar:
-            self._safe_extract_kubeseal(tar, version)
+            self._safe_extract_kubeseal(tar, normalized)
 
         os.remove(local_path)
 
@@ -174,7 +176,8 @@ class Host:
             version: The version string for naming the extracted binary.
 
         Raises:
-            ValueError: If the kubeseal binary is not found or has unsafe path.
+            ValueError: If the kubeseal binary is not found in the archive
+                       or if path traversal is detected.
         """
         target_name = f"kubeseal-{version}"
 
@@ -187,14 +190,12 @@ class Host:
                     member.name = target_name
                     tar.extract(member, path=self.bin_location, filter="data")
                     return
+            # Binary not found in archive
+            raise ValueError(f"kubeseal binary not found in archive for version {version}")
         else:
             # Fallback for Python < 3.12: manual safe extraction
             for member in tar.getmembers():
                 if member.name == "kubeseal" and member.isfile():
-                    # Security checks for path traversal
-                    if member.name.startswith("/") or ".." in member.name:
-                        raise ValueError(f"Unsafe path in tar archive: {member.name}")
-
                     # Verify the extraction path stays within bin_location
                     extract_path = os.path.realpath(os.path.join(self.bin_location, target_name))
                     bin_location_real = os.path.realpath(self.bin_location)
@@ -204,6 +205,8 @@ class Host:
                     member.name = target_name
                     tar.extract(member, path=self.bin_location)
                     return
+            # Binary not found in archive
+            raise ValueError(f"kubeseal binary not found in archive for version {version}")
 
     def get_binary_path(self, version: str) -> str:
         """Get the path to the kubeseal binary for the specified version.
@@ -227,9 +230,9 @@ class Host:
 
         Raises:
             BinaryNotFoundError: If the binary cannot be downloaded.
+            ValueError: If version format is invalid.
         """
-        normalized = self._normalize_version(version)
-        binary_path = self.get_binary_path(normalized)
+        binary_path = self.get_binary_path(version)
         if not os.path.exists(binary_path):
             click.echo(f"kubeseal binary not found at {binary_path}")
-            self._download_kubeseal_binary(normalized)
+            self._download_kubeseal_binary(version)

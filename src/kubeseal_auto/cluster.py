@@ -51,11 +51,17 @@ class Cluster:
 
         Returns:
             The selected or current context name.
+
+        Raises:
+            click.Abort: If user cancels context selection.
         """
         contexts, current_context = config.list_kube_config_contexts()
         if select_context:
             context_names: list[str] = [context["name"] for context in contexts]
-            context: str = questionary.select("Select context to work with", choices=context_names).ask()
+            context: str | None = questionary.select("Select context to work with", choices=context_names).ask()
+            if context is None:
+                click.echo("Context selection cancelled.")
+                raise click.Abort()
         else:
             context = str(current_context["name"])
         click.echo(f"===> Working with [{Fore.CYAN}{context}{Fore.RESET}] cluster")

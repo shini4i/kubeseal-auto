@@ -105,7 +105,11 @@ class TestHostBinaryManagement:
                 mock_download.assert_called_once_with("0.26.0")
 
     def test_ensure_kubeseal_binary_strips_v_prefix(self):
-        """Test that version prefix 'v' is stripped."""
+        """Test that version prefix 'v' is handled correctly.
+
+        ensure_kubeseal_binary passes the version as-is to helper methods,
+        which normalize internally.
+        """
         with (
             patch("platform.machine", return_value="x86_64"),
             patch("platform.system", return_value="Linux"),
@@ -115,7 +119,8 @@ class TestHostBinaryManagement:
 
             with patch.object(host, "_download_kubeseal_binary") as mock_download:
                 host.ensure_kubeseal_binary("v0.26.0")
-                mock_download.assert_called_once_with("0.26.0")
+                # Version is passed as-is; _download_kubeseal_binary normalizes internally
+                mock_download.assert_called_once_with("v0.26.0")
 
     def test_download_kubeseal_binary_success(self):
         """Test successful binary download."""
