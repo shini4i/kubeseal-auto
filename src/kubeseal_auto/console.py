@@ -8,6 +8,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 
 from rich.console import Console
+from rich.panel import Panel
 from rich.progress import (
     BarColumn,
     DownloadColumn,
@@ -18,6 +19,7 @@ from rich.progress import (
     TimeRemainingColumn,
     TransferSpeedColumn,
 )
+from rich.table import Table
 from rich.theme import Theme
 
 # Custom theme with consistent colors
@@ -157,3 +159,25 @@ def create_task_progress() -> Progress:
         TextColumn("[muted]{task.completed}/{task.total}[/muted]"),
         console=console,
     )
+
+
+def summary_panel(title: str, items: dict[str, str]) -> None:
+    """Print a summary panel with key-value pairs.
+
+    Args:
+        title: Title for the panel.
+        items: Dictionary of label -> value pairs to display.
+    """
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style="bold")
+    table.add_column(style="cyan")
+
+    for label, value in items.items():
+        table.add_row(f"{label}:", value)
+
+    console.print(Panel(table, title=f"[bold]{title}[/bold]", border_style="green"))
+
+
+def newline() -> None:
+    """Print an empty line."""
+    console.print()

@@ -6,6 +6,7 @@ to create, seal, and manage Kubernetes sealed secrets.
 
 import contextlib
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -16,19 +17,36 @@ import click
 import questionary
 import yaml
 from icecream import ic
-from questionary import Choice, Separator
 
 from kubeseal_auto import console
 from kubeseal_auto.cluster import Cluster
 from kubeseal_auto.exceptions import BinaryNotFoundError, SecretParsingError
 from kubeseal_auto.styles import POINTER, PROMPT_STYLE, QMARK
 
+# Kubernetes DNS subdomain name validation (RFC 1123)
+_DNS_SUBDOMAIN_MAX_LENGTH = 253
+_DNS_SUBDOMAIN_PATTERN = r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+
 # CLI flag constants for kubectl and kubeseal commands
 _DRY_RUN_CLIENT = "--dry-run=client"
 _FORMAT_YAML = "--format=yaml"
 
-# Special choice value for manual namespace entry
-_MANUAL_ENTRY = "__manual_entry__"
+def _validate_k8s_name(name: str) -> bool | str:
+    """Validate a Kubernetes resource name (DNS subdomain).
+
+    Args:
+        name: The name to validate.
+
+    Returns:
+        True if valid, or an error message string if invalid.
+    """
+    if not name:
+        return "Name cannot be empty"
+    if len(name) > _DNS_SUBDOMAIN_MAX_LENGTH:
+        return f"Name must be {_DNS_SUBDOMAIN_MAX_LENGTH} characters or less"
+    if not re.match(_DNS_SUBDOMAIN_PATTERN, name):
+        return "Name must consist of lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"
+    return True
 
 
 class Kubeseal:
@@ -178,31 +196,19 @@ class Kubeseal:
         if self.detached_mode:
             namespace = questionary.text(
                 "Provide namespace for the new secret",
+                validate=_validate_k8s_name,
                 style=PROMPT_STYLE,
                 qmark=QMARK,
             ).unsafe_ask()
         else:
-            # Build choices with manual entry option at top
-            namespace_choices: list[Choice | Separator | str] = [
-                Choice(title="Enter manually...", value=_MANUAL_ENTRY),
-                Separator(),
-                *self.namespaces_list,
-            ]
-            namespace = questionary.select(
-                "Select namespace for the new secret",
-                choices=namespace_choices,
+            # Use autocomplete for namespace selection with type-ahead filtering
+            namespace = questionary.autocomplete(
+                "Select or type namespace (Tab to show options)",
+                choices=self.namespaces_list,
+                validate=_validate_k8s_name,
                 style=PROMPT_STYLE,
-                pointer=POINTER,
                 qmark=QMARK,
             ).unsafe_ask()
-
-            # If manual entry selected, prompt for text input
-            if namespace == _MANUAL_ENTRY:
-                namespace = questionary.text(
-                    "Enter namespace name",
-                    style=PROMPT_STYLE,
-                    qmark=QMARK,
-                ).unsafe_ask()
         secret_type = questionary.select(
             "Select secret type to create",
             choices=["generic", "tls", "docker-registry"],
@@ -212,6 +218,7 @@ class Kubeseal:
         ).unsafe_ask()
         secret_name = questionary.text(
             "Provide name for the new secret",
+            validate=_validate_k8s_name,
             style=PROMPT_STYLE,
             qmark=QMARK,
         ).unsafe_ask()
@@ -346,24 +353,36 @@ class Kubeseal:
         with open(self._temp_file_path, "w") as f:
             subprocess.run(cmd, stdout=f, check=True)
 
-    def seal(self, secret_name: str) -> None:
+    def seal(self, secret_params: dict[str, str]) -> None:
         """Seal a secret using kubeseal.
 
         Reads the temporary secret file and outputs a sealed secret YAML file.
 
         Args:
-            secret_name: Name for the output sealed secret file (without .yaml extension).
+            secret_params: Dictionary containing 'name', 'namespace', and 'type' keys.
         """
-        console.action("Sealing generated secret file")
+        console.step("Sealing secret")
+
         cmd = self._build_kubeseal_cmd()
         ic(cmd)
 
-        output_file = f"{secret_name}.yaml"
-        with open(self._temp_file_path) as stdin_f, open(output_file, "w") as stdout_f:
-            subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, check=True)
+        output_file = f"{secret_params['name']}.yaml"
 
-        self.append_argo_annotation(filename=output_file)
-        console.success("Done")
+        with console.spinner("Sealing secret with kubeseal..."):
+            with open(self._temp_file_path) as stdin_f, open(output_file, "w") as stdout_f:
+                subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, check=True)
+            self.append_argo_annotation(filename=output_file)
+
+        console.newline()
+        console.summary_panel(
+            "Sealed Secret Created",
+            {
+                "Name": secret_params["name"],
+                "Namespace": secret_params["namespace"],
+                "Type": secret_params["type"],
+                "Output": output_file,
+            },
+        )
 
     @staticmethod
     def parse_existing_secret(secret_name: str) -> dict[str, Any] | None:

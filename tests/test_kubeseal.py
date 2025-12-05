@@ -123,12 +123,12 @@ class TestKubesealSealing:
     def test_seal(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test sealing a secret."""
         kubeseal = Kubeseal(select_context=False)
-        secret_name = "test-secret"
+        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
 
         with patch(
             "builtins.open", mock_open(read_data="apiVersion: v1\nkind: Secret\nmetadata:\n  name: test-secret")
         ):
-            kubeseal.seal(secret_name)
+            kubeseal.seal(secret_params=secret_params)
 
             mock_subprocess.assert_called_once()
             cmd = mock_subprocess.call_args[0][0]
@@ -141,12 +141,12 @@ class TestKubesealSealing:
     def test_seal_detached_mode(self, mock_subprocess):
         """Test sealing a secret in detached mode."""
         kubeseal = Kubeseal(select_context=False, certificate="test-cert.crt")
-        secret_name = "test-secret"
+        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
 
         with patch(
             "builtins.open", mock_open(read_data="apiVersion: v1\nkind: Secret\nmetadata:\n  name: test-secret")
         ):
-            kubeseal.seal(secret_name)
+            kubeseal.seal(secret_params=secret_params)
 
             mock_subprocess.assert_called_once()
             cmd = mock_subprocess.call_args[0][0]
@@ -253,10 +253,12 @@ class TestKubesealCollectParameters:
         kubeseal = Kubeseal(select_context=False)
 
         with (
+            patch("questionary.autocomplete") as mock_autocomplete,
             patch("questionary.select") as mock_select,
             patch("questionary.text") as mock_text,
         ):
-            mock_select.return_value.unsafe_ask.side_effect = ["default", "generic"]
+            mock_autocomplete.return_value.unsafe_ask.return_value = "default"
+            mock_select.return_value.unsafe_ask.return_value = "generic"
             mock_text.return_value.unsafe_ask.return_value = "my-secret"
 
             params = kubeseal.collect_parameters()

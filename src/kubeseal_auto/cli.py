@@ -34,7 +34,7 @@ def create_new_secret(kubeseal: Kubeseal) -> None:
         case "docker-registry":
             kubeseal.create_regcred_secret(secret_params=secret_params)
 
-    kubeseal.seal(secret_name=secret_params["name"])
+    kubeseal.seal(secret_params=secret_params)
 
 
 def edit_secret(kubeseal: Kubeseal, file: str) -> None:

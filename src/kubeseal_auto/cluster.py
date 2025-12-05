@@ -101,16 +101,15 @@ class Cluster:
         Raises:
             ControllerNotFoundError: If no SealedSecrets controller is found.
         """
-        console.action("Searching for SealedSecrets controller service...")
+        with console.spinner("Searching for SealedSecrets controller..."):
+            core_v1_api = client.CoreV1Api()
 
-        core_v1_api = client.CoreV1Api()
+            found_services: list[Any] = core_v1_api.list_service_for_all_namespaces(
+                label_selector="app.kubernetes.io/name=sealed-secrets"
+            ).items
 
-        found_services: list[Any] = core_v1_api.list_service_for_all_namespaces(
-            label_selector="app.kubernetes.io/name=sealed-secrets"
-        ).items
-
-        # Further filter out metrics services
-        found_services = [svc for svc in found_services if "metrics" not in svc.metadata.name]
+            # Further filter out metrics services
+            found_services = [svc for svc in found_services if "metrics" not in svc.metadata.name]
 
         if not found_services:
             console.error("No controller found")
