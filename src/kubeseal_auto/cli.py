@@ -6,6 +6,8 @@ handling command-line argument parsing and orchestrating the various
 secret management operations.
 """
 
+import sys
+
 import click
 from icecream import ic
 
@@ -129,7 +131,7 @@ def cli(
             create_new_secret(kubeseal=kubeseal)
     except ClusterConnectionError as e:
         console.error(f"Cluster connection failed: {e}")
-        raise SystemExit(1) from None
+        sys.exit(1)
 
 
 if __name__ == "__main__":
