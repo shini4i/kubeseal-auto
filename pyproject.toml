@@ -2,7 +2,7 @@
 name = "kubeseal-auto"
 version = "0.6.0"
 description = "An interactive wrapper for kubeseal binary"
-authors = ["Vadim Gedz <vadims@linux-tech.io>"]
+authors = ["Vadim Gedz <github@shini4i.dev>"]
 license = "MIT"
 
 readme = "README.md"
@@ -13,15 +13,19 @@ homepage = "https://github.com/shini4i/kubeseal-auto"
 python = "^3.10"
 PyYAML = "^6.0"
 requests = "^2.28.1"
-kubernetes = ">=31,<34"
-click = "^8.1.7"
+kubernetes = ">=31,<35"
+click = "^8.3.1"
 icecream = "^2.1.3"
 questionary = "^2.0.1"
 colorama = "^0.4.6"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.3.3"
-pytest-cov = "^6.0.0"
+pytest = "^9.0.1"
+pytest-cov = "^7.0.0"
+ruff = "^0.14.8"
+mypy = "^1.13.0"
+types-PyYAML = "^6.0"
+types-requests = "^2.31"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -29,3 +33,43 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 kubeseal-auto = "kubeseal_auto.cli:cli"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "W",      # pycodestyle warnings
+    "I",      # isort
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "SIM108", # ternary operator - explicit if/else is clearer for Kubeseal init
+    "SIM115", # context manager for temp file - NamedTemporaryFile is managed by class lifecycle
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["kubeseal_auto"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "kubernetes.*",
+    "questionary.*",
+    "icecream.*",
+    "colorama.*",
+]
+ignore_missing_imports = true
