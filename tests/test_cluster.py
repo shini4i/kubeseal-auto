@@ -3,9 +3,11 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from kubernetes.config.config_exception import ConfigException
+from urllib3.exceptions import MaxRetryError, NewConnectionError
 
 from kubeseal_auto.cluster import Cluster
-from kubeseal_auto.exceptions import ControllerNotFoundError
+from kubeseal_auto.exceptions import ClusterConnectionError, ControllerNotFoundError
 
 
 class TestClusterContextSelection:
@@ -49,6 +51,18 @@ class TestClusterContextSelection:
 
             assert cluster.context == "context2"
             mock_select.assert_called_once()
+
+    def test_set_context_invalid_kubeconfig(self):
+        """Test error when kubeconfig is invalid or missing."""
+        with patch("kubernetes.config.list_kube_config_contexts") as mock_contexts:
+            mock_contexts.side_effect = ConfigException(
+                "Invalid kube-config file. No configuration found."
+            )
+
+            with pytest.raises(ClusterConnectionError) as exc_info:
+                Cluster(select_context=False)
+
+            assert "Invalid or missing kubeconfig" in str(exc_info.value)
 
 
 class TestClusterControllerDiscovery:
@@ -110,6 +124,24 @@ class TestClusterControllerDiscovery:
 
             # Should select the controller, not the metrics service
             assert cluster.controller["name"] == "sealed-secrets-controller"
+
+    def test_find_controller_connection_error(self, mock_kube_contexts, mock_kube_config):
+        """Test error when cluster is unreachable."""
+        with patch("kubernetes.client.CoreV1Api") as mock_api:
+            api_instance = MagicMock()
+            mock_api.return_value = api_instance
+
+            # Simulate connection error
+            connection_error = NewConnectionError(
+                None, "Failed to establish a new connection: [Errno 111] Connection refused"
+            )
+            max_retry_error = MaxRetryError(pool=None, url="/api/v1/services", reason=connection_error)
+            api_instance.list_service_for_all_namespaces.side_effect = max_retry_error
+
+            with pytest.raises(ClusterConnectionError) as exc_info:
+                Cluster(select_context=False)
+
+            assert "Failed to connect" in str(exc_info.value)
 
 
 class TestClusterNamespaces:

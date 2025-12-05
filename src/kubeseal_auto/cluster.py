@@ -10,9 +10,11 @@ import click
 import questionary
 from icecream import ic
 from kubernetes import client, config
+from kubernetes.config.config_exception import ConfigException
+from urllib3.exceptions import MaxRetryError
 
 from kubeseal_auto import console
-from kubeseal_auto.exceptions import ControllerNotFoundError
+from kubeseal_auto.exceptions import ClusterConnectionError, ControllerNotFoundError
 from kubeseal_auto.host import Host, normalize_version
 from kubeseal_auto.styles import POINTER, PROMPT_STYLE, QMARK
 
@@ -56,10 +58,14 @@ class Cluster:
             The selected or current context name.
 
         Raises:
+            ClusterConnectionError: If kubeconfig is invalid or missing.
             click.Abort: If user cancels context selection.
 
         """
-        contexts, current_context = config.list_kube_config_contexts()
+        try:
+            contexts, current_context = config.list_kube_config_contexts()
+        except ConfigException as e:
+            raise ClusterConnectionError(f"Invalid or missing kubeconfig: {e}") from e
         if select_context:
             context_names: list[str] = [context["name"] for context in contexts]
             context: str | None = questionary.select(
@@ -103,15 +109,21 @@ class Cluster:
             Dictionary with controller 'name', 'namespace', and 'version'.
 
         Raises:
+            ClusterConnectionError: If the cluster is unreachable.
             ControllerNotFoundError: If no SealedSecrets controller is found.
 
         """
         with console.spinner("Searching for SealedSecrets controller..."):
             core_v1_api = client.CoreV1Api()
 
-            found_services: list[Any] = core_v1_api.list_service_for_all_namespaces(
-                label_selector="app.kubernetes.io/name=sealed-secrets"
-            ).items
+            try:
+                found_services: list[Any] = core_v1_api.list_service_for_all_namespaces(
+                    label_selector="app.kubernetes.io/name=sealed-secrets"
+                ).items
+            except MaxRetryError as e:
+                raise ClusterConnectionError(
+                    f"Failed to connect to the Kubernetes cluster: {e.reason}"
+                ) from e
 
             # Further filter out metrics services
             found_services = [svc for svc in found_services if "metrics" not in svc.metadata.name]
