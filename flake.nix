@@ -42,7 +42,6 @@
               poetry
               kubectl
               kubeseal
-              pre-commit
               ruff
               mypy
             ];

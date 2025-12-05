@@ -7,6 +7,7 @@ downloads and platform detection.
 import os
 import platform
 import tarfile
+import tempfile
 
 import click
 import requests
@@ -100,7 +101,10 @@ class Host:
 
         url = f"{self.base_url}/v{version}/kubeseal-{version}-{self.system}-{self.cpu_type}.tar.gz"
         ic(url)
-        local_path = f"/tmp/kubeseal-{version}-{self.system}-{self.cpu_type}.tar.gz"
+        local_path = os.path.join(
+            tempfile.gettempdir(),
+            f"kubeseal-{version}-{self.system}-{self.cpu_type}.tar.gz",
+        )
         ic(local_path)
 
         if not os.path.exists(self.bin_location):

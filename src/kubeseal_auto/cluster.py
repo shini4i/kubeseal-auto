@@ -141,7 +141,7 @@ class Cluster:
             raise ControllerNotFoundError("No sealed-secrets TLS certificates found in the cluster")
 
         secrets.sort(key=lambda x: x["timestamp"])
-        return secrets[-1]["name"]
+        return str(secrets[-1]["name"])
 
     def ensure_kubeseal_version(self, version: str) -> None:
         """Ensure the kubeseal binary for the specified version is available.
