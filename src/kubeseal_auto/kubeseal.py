@@ -117,6 +117,34 @@ class Kubeseal:
             with contextlib.suppress(OSError):
                 os.unlink(self._temp_file_path)
 
+    def _build_kubeseal_cmd(self, extra_args: list[str] | None = None) -> list[str]:
+        """Build a kubeseal command with common flags.
+
+        Constructs the base kubeseal command with appropriate flags for either
+        detached mode (using certificate) or connected mode (using controller info).
+
+        Args:
+            extra_args: Additional arguments to append to the command.
+
+        Returns:
+            List of command arguments ready for subprocess execution.
+        """
+        cmd: list[str] = [self.binary, _FORMAT_YAML]
+
+        if self.detached_mode:
+            cmd.append(f"--cert={self.certificate}")
+        else:
+            cmd.extend([
+                f"--context={self.current_context_name}",
+                f"--controller-namespace={self.controller_namespace}",
+                f"--controller-name={self.controller_name}",
+            ])
+
+        if extra_args:
+            cmd.extend(extra_args)
+
+        return cmd
+
     def _find_sealed_secrets(self, src: str) -> list[Path]:
         """Find all SealedSecret files in a directory.
 
@@ -276,16 +304,7 @@ class Kubeseal:
             secret_name: Name for the output sealed secret file (without .yaml extension).
         """
         click.echo("===> Sealing generated secret file")
-        if self.detached_mode:
-            cmd: list[str] = [self.binary, _FORMAT_YAML, f"--cert={self.certificate}"]
-        else:
-            cmd = [
-                self.binary,
-                _FORMAT_YAML,
-                f"--context={self.current_context_name}",
-                f"--controller-namespace={self.controller_namespace}",
-                f"--controller-name={self.controller_name}",
-            ]
+        cmd = self._build_kubeseal_cmd()
         ic(cmd)
 
         output_file = f"{secret_name}.yaml"
@@ -329,18 +348,7 @@ class Kubeseal:
             secret_name: Path to the existing sealed secret file to update.
         """
         click.echo(f"===> Updating {secret_name}")
-        if self.detached_mode:
-            cmd: list[str] = [self.binary, _FORMAT_YAML, "--merge-into", secret_name, f"--cert={self.certificate}"]
-        else:
-            cmd = [
-                self.binary,
-                _FORMAT_YAML,
-                "--merge-into",
-                secret_name,
-                f"--context={self.current_context_name}",
-                f"--controller-namespace={self.controller_namespace}",
-                f"--controller-name={self.controller_name}",
-            ]
+        cmd = self._build_kubeseal_cmd(extra_args=["--merge-into", secret_name])
         ic(cmd)
 
         with open(self._temp_file_path) as stdin_f:
@@ -425,16 +433,7 @@ class Kubeseal:
             # Create backup of original file
             shutil.copy2(secret, backup_file)
 
-            cmd: list[str] = [
-                self.binary,
-                _FORMAT_YAML,
-                f"--context={self.current_context_name}",
-                "--controller-namespace",
-                self.controller_namespace,
-                "--controller-name",
-                self.controller_name,
-                "--re-encrypt",
-            ]
+            cmd = self._build_kubeseal_cmd(extra_args=["--re-encrypt"])
             ic(cmd)
 
             try:

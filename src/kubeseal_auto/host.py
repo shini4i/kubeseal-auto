@@ -110,23 +110,6 @@ class Host:
             case _:
                 raise UnsupportedPlatformError(f"Unsupported operating system: {platform.system()}")
 
-    @staticmethod
-    def _normalize_version(version: str) -> str:
-        """Normalize a version string by removing the 'v' prefix if present.
-
-        This method delegates to the module-level normalize_version function.
-
-        Args:
-            version: The version string (e.g., 'v0.26.0' or '0.26.0').
-
-        Returns:
-            The version string without 'v' prefix (e.g., '0.26.0').
-
-        Raises:
-            ValueError: If version is None, empty, or doesn't match semantic versioning.
-        """
-        return normalize_version(version)
-
     def _download_kubeseal_binary(self, version: str) -> None:
         """Download the kubeseal binary for the specified version.
 
@@ -139,7 +122,7 @@ class Host:
         """
         click.echo("Downloading kubeseal binary")
 
-        normalized = self._normalize_version(version)
+        normalized = normalize_version(version)
         url = f"{self.base_url}/v{normalized}/kubeseal-{normalized}-{self.system}-{self.cpu_type}.tar.gz"
         ic(url)
         local_path = os.path.join(
@@ -230,7 +213,7 @@ class Host:
         Returns:
             The full path to the kubeseal binary.
         """
-        normalized = self._normalize_version(version)
+        normalized = normalize_version(version)
         return f"{self.bin_location}/kubeseal-{normalized}"
 
     def ensure_kubeseal_binary(self, version: str) -> None:
