@@ -9,8 +9,8 @@ secret management operations.
 import click
 from icecream import ic
 
-from kubeseal_auto import __version__
-from kubeseal_auto.exceptions import SecretParsingError
+from kubeseal_auto import __version__, console
+from kubeseal_auto.exceptions import ClusterConnectionError, SecretParsingError
 from kubeseal_auto.kubeseal import Kubeseal
 
 
@@ -108,24 +108,28 @@ def cli(
         click.echo(__version__)
         return
 
-    with Kubeseal(certificate=cert, select_context=select) as kubeseal:
-        if fetch:
-            kubeseal.fetch_certificate()
-            return
+    try:
+        with Kubeseal(certificate=cert, select_context=select) as kubeseal:
+            if fetch:
+                kubeseal.fetch_certificate()
+                return
 
-        if backup:
-            kubeseal.backup()
-            return
+            if backup:
+                kubeseal.backup()
+                return
 
-        if re_encrypt:
-            kubeseal.reencrypt(src=re_encrypt)
-            return
+            if re_encrypt:
+                kubeseal.reencrypt(src=re_encrypt)
+                return
 
-        if edit:
-            edit_secret(kubeseal=kubeseal, file=edit)
-            return
+            if edit:
+                edit_secret(kubeseal=kubeseal, file=edit)
+                return
 
-        create_new_secret(kubeseal=kubeseal)
+            create_new_secret(kubeseal=kubeseal)
+    except ClusterConnectionError as e:
+        console.error(f"Cluster connection failed: {e}")
+        raise SystemExit(1) from None
 
 
 if __name__ == "__main__":
