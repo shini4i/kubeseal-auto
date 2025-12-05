@@ -234,20 +234,63 @@ class Kubeseal:
         Args:
             secret_params: Dictionary containing 'name' and 'namespace' keys.
         """
-        console.info(
-            "Provide literal entry/entries one per line: "
-            f"{console.highlight('literal')} key=value "
-            f"{console.highlight('file')} filename"
-        )
+        entries: list[str] = []
 
-        secrets = questionary.text(
-            "Secret Entries one per line",
-            multiline=True,
-            style=PROMPT_STYLE,
-            qmark=QMARK,
-        ).unsafe_ask()
-        ic(secrets)
+        while True:
+            # Show current entries if any
+            if entries:
+                console.info(f"Current entries: {console.highlight(str(len(entries)))}")
 
+            entry_type = questionary.select(
+                "Add secret entry",
+                choices=[
+                    {"name": "📝 Literal (key=value)", "value": "literal"},
+                    {"name": "📝 Bulk literals (one per line)", "value": "bulk"},
+                    {"name": "📁 From file", "value": "file"},
+                    {"name": "✓ Done adding entries", "value": "done", "disabled": not entries},
+                ],
+                style=PROMPT_STYLE,
+                pointer=POINTER,
+                qmark=QMARK,
+            ).unsafe_ask()
+
+            if entry_type == "done":
+                break
+
+            if entry_type == "literal":
+                entry = questionary.text(
+                    "Enter key=value",
+                    validate=lambda x: True if "=" in x else "Must be in key=value format",
+                    style=PROMPT_STYLE,
+                    qmark=QMARK,
+                ).unsafe_ask()
+                entries.append(f"--from-literal={entry}")
+                console.success(f"Added literal: {console.highlight(entry.split('=')[0])}")
+            elif entry_type == "bulk":
+                bulk_input = questionary.text(
+                    "Enter key=value pairs (one per line, Esc+Enter to finish)",
+                    multiline=True,
+                    style=PROMPT_STYLE,
+                    qmark=QMARK,
+                ).unsafe_ask()
+                added_count = 0
+                for line in bulk_input.splitlines():
+                    line = line.strip()
+                    if line and "=" in line:
+                        entries.append(f"--from-literal={line}")
+                        added_count += 1
+                if added_count:
+                    console.success(f"Added {console.highlight(str(added_count))} literal(s)")
+            else:
+                entry = questionary.path(
+                    "Select file",
+                    style=PROMPT_STYLE,
+                    qmark=QMARK,
+                ).unsafe_ask()
+                entries.append(f"--from-file={entry}")
+                console.success(f"Added file: {console.highlight(entry)}")
+
+        ic(entries)
         console.step("Generating temporary generic secret yaml file")
 
         cmd: list[str] = [
@@ -261,16 +304,8 @@ class Kubeseal:
             _DRY_RUN_CLIENT,
             "-o",
             "yaml",
+            *entries,
         ]
-
-        for secret in secrets.splitlines():
-            secret = secret.strip()
-            if not secret:
-                continue
-            if "=" in secret:
-                cmd.append(f"--from-literal={secret}")
-            else:
-                cmd.append(f"--from-file={secret}")
 
         ic(cmd)
 

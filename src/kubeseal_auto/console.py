@@ -104,15 +104,6 @@ def highlight(text: str) -> str:
     return f"[highlight]{text}[/highlight]"
 
 
-def print(message: str) -> None:
-    """Print a plain message with Rich markup support.
-
-    Args:
-        message: The message to display.
-    """
-    console.print(message)
-
-
 @contextmanager
 def spinner(message: str) -> Generator[None, None, None]:
     """Display a spinner while performing an operation.
