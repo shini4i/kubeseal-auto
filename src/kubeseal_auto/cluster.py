@@ -13,7 +13,7 @@ from icecream import ic
 from kubernetes import client, config
 
 from kubeseal_auto.exceptions import ControllerNotFoundError
-from kubeseal_auto.host import Host
+from kubeseal_auto.host import Host, normalize_version
 
 
 class Cluster:
@@ -28,12 +28,13 @@ class Cluster:
         controller: Dictionary containing controller metadata (name, namespace, version).
     """
 
-    def __init__(self, select_context: bool) -> None:
+    def __init__(self, *, select_context: bool) -> None:
         """Initialize Cluster with context selection.
 
         Args:
             select_context: If True, prompt user to select a context.
                            If False, use the current context.
+                           Must be passed as a keyword argument.
         """
         self.context: str = self._set_context(select_context=select_context)
         config.load_kube_config(context=self.context)
@@ -41,11 +42,12 @@ class Cluster:
         self.controller: dict[str, str] = self._find_sealed_secrets_controller()
 
     @staticmethod
-    def _set_context(select_context: bool) -> str:
+    def _set_context(*, select_context: bool) -> str:
         """Set the Kubernetes context to use.
 
         Args:
             select_context: If True, prompt user to select a context.
+                           Must be passed as a keyword argument.
 
         Returns:
             The selected or current context name.
@@ -183,8 +185,11 @@ class Cluster:
 
         Returns:
             The controller version without the 'v' prefix.
+
+        Raises:
+            ValueError: If the version format is invalid.
         """
-        return self.controller["version"].split("v")[-1]
+        return normalize_version(self.controller["version"])
 
     def get_context(self) -> str:
         """Get the current Kubernetes context name.

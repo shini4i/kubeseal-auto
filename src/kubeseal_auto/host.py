@@ -6,6 +6,7 @@ downloads and platform detection.
 
 import os
 import platform
+import re
 import tarfile
 import tempfile
 
@@ -14,6 +15,39 @@ import requests
 from icecream import ic
 
 from kubeseal_auto.exceptions import BinaryNotFoundError, UnsupportedPlatformError
+
+# Semantic version pattern for validation
+_SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+(?:-[\w.]+)?(?:\+[\w.]+)?$")
+
+
+def normalize_version(version: str) -> str:
+    """Normalize a version string by removing a leading 'v' prefix if present.
+
+    This is a module-level utility for consistent version normalization
+    across the codebase.
+
+    Args:
+        version: The version string (e.g., 'v0.26.0' or '0.26.0').
+
+    Returns:
+        The version string without leading 'v' (e.g., '0.26.0').
+
+    Raises:
+        ValueError: If version is None, empty, or doesn't match semantic versioning.
+    """
+    if not version:
+        raise ValueError("Version string cannot be None or empty")
+
+    # Remove only a single leading 'v' if present
+    normalized = version[1:] if version.startswith("v") else version
+
+    if not normalized:
+        raise ValueError(f"Invalid version string: '{version}' results in empty version after normalization")
+
+    if not _SEMVER_PATTERN.match(normalized):
+        raise ValueError(f"Invalid version format: '{normalized}' does not match semantic versioning pattern")
+
+    return normalized
 
 
 class Host:
@@ -80,13 +114,18 @@ class Host:
     def _normalize_version(version: str) -> str:
         """Normalize a version string by removing the 'v' prefix if present.
 
+        This method delegates to the module-level normalize_version function.
+
         Args:
             version: The version string (e.g., 'v0.26.0' or '0.26.0').
 
         Returns:
             The version string without 'v' prefix (e.g., '0.26.0').
+
+        Raises:
+            ValueError: If version is None, empty, or doesn't match semantic versioning.
         """
-        return version.split("v")[-1]
+        return normalize_version(version)
 
     def _download_kubeseal_binary(self, version: str) -> None:
         """Download the kubeseal binary for the specified version.
@@ -119,14 +158,52 @@ class Host:
                 f.write(r.content)
 
         with tarfile.open(local_path, "r:gz") as tar:
-            # Extract only the kubeseal binary, filtering for security
-            for member in tar.getmembers():
-                if member.name == "kubeseal" and member.isfile():
-                    member.name = f"kubeseal-{version}"
-                    tar.extract(member, path=self.bin_location)
-                    break
+            self._safe_extract_kubeseal(tar, version)
 
         os.remove(local_path)
+
+    def _safe_extract_kubeseal(self, tar: tarfile.TarFile, version: str) -> None:
+        """Safely extract the kubeseal binary from a tar archive.
+
+        Uses tarfile.data_filter when available (Python 3.12+) for enhanced
+        security against path traversal attacks. Falls back to manual safe
+        checks for older Python versions.
+
+        Args:
+            tar: The open TarFile object to extract from.
+            version: The version string for naming the extracted binary.
+
+        Raises:
+            ValueError: If the kubeseal binary is not found or has unsafe path.
+        """
+        target_name = f"kubeseal-{version}"
+
+        # Check if data_filter is available (Python 3.12+)
+        if hasattr(tarfile, "data_filter"):
+            # Use the safe data_filter for extraction
+            for member in tar.getmembers():
+                if member.name == "kubeseal" and member.isfile():
+                    # Create a modified member with the versioned name
+                    member.name = target_name
+                    tar.extract(member, path=self.bin_location, filter="data")
+                    return
+        else:
+            # Fallback for Python < 3.12: manual safe extraction
+            for member in tar.getmembers():
+                if member.name == "kubeseal" and member.isfile():
+                    # Security checks for path traversal
+                    if member.name.startswith("/") or ".." in member.name:
+                        raise ValueError(f"Unsafe path in tar archive: {member.name}")
+
+                    # Verify the extraction path stays within bin_location
+                    extract_path = os.path.realpath(os.path.join(self.bin_location, target_name))
+                    bin_location_real = os.path.realpath(self.bin_location)
+                    if not extract_path.startswith(bin_location_real + os.sep):
+                        raise ValueError(f"Path traversal detected: {extract_path}")
+
+                    member.name = target_name
+                    tar.extract(member, path=self.bin_location)
+                    return
 
     def get_binary_path(self, version: str) -> str:
         """Get the path to the kubeseal binary for the specified version.
