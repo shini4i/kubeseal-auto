@@ -5,7 +5,6 @@ to create, seal, and manage Kubernetes sealed secrets.
 """
 
 import contextlib
-import os
 import re
 import shutil
 import subprocess
@@ -21,6 +20,7 @@ from icecream import ic
 from kubeseal_auto import console
 from kubeseal_auto.cluster import Cluster
 from kubeseal_auto.exceptions import BinaryNotFoundError, SecretParsingError
+from kubeseal_auto.models import SecretParams, SecretType
 from kubeseal_auto.styles import POINTER, PROMPT_STYLE, QMARK
 
 # Kubernetes DNS subdomain name validation (RFC 1123)
@@ -93,11 +93,11 @@ class Kubeseal:
             self.certificate = certificate
         else:
             self.cluster = Cluster(select_context=select_context)
-            self.controller_name = self.cluster.get_controller_name()
-            self.controller_namespace = self.cluster.get_controller_namespace()
-            self.current_context_name = self.cluster.get_context()
+            self.controller_name = self.cluster.controller_name
+            self.controller_namespace = self.cluster.controller_namespace
+            self.current_context_name = self.cluster.context
             self.namespaces_list = self.cluster.get_all_namespaces()
-            version = self.cluster.get_controller_version()
+            version = self.cluster.controller_version
 
             try:
                 self.cluster.ensure_kubeseal_version(version)
@@ -138,11 +138,21 @@ class Kubeseal:
         """
         self._cleanup_temp_file()
 
+    def __repr__(self) -> str:
+        """Return a detailed string representation for debugging."""
+        if self.detached_mode:
+            return f"Kubeseal(detached_mode=True, certificate={self.certificate!r})"
+        return (
+            f"Kubeseal(context={self.current_context_name!r}, "
+            f"controller={self.controller_name!r})"
+        )
+
     def _cleanup_temp_file(self) -> None:
         """Remove the temporary file if it exists."""
-        if hasattr(self, "_temp_file_path") and os.path.exists(self._temp_file_path):
+        if hasattr(self, "_temp_file_path"):
+            temp_path = Path(self._temp_file_path)
             with contextlib.suppress(OSError):
-                os.unlink(self._temp_file_path)
+                temp_path.unlink(missing_ok=True)
 
     def _build_kubeseal_cmd(self, extra_args: list[str] | None = None) -> list[str]:
         """Build a kubeseal command with common flags.
@@ -194,11 +204,11 @@ class Kubeseal:
                 continue
         return secrets
 
-    def collect_parameters(self) -> dict[str, str]:
+    def collect_parameters(self) -> SecretParams:
         """Interactively collect parameters for creating a new secret.
 
         Returns:
-            Dictionary with 'namespace', 'type', and 'name' keys.
+            SecretParams with namespace, secret_type, and name.
 
         """
         if self.detached_mode:
@@ -217,9 +227,9 @@ class Kubeseal:
                 style=PROMPT_STYLE,
                 qmark=QMARK,
             ).unsafe_ask()
-        secret_type = questionary.select(
+        secret_type_str = questionary.select(
             "Select secret type to create",
-            choices=["generic", "tls", "docker-registry"],
+            choices=[t.value for t in SecretType],
             style=PROMPT_STYLE,
             pointer=POINTER,
             qmark=QMARK,
@@ -231,7 +241,11 @@ class Kubeseal:
             qmark=QMARK,
         ).unsafe_ask()
 
-        return {"namespace": namespace, "type": secret_type, "name": secret_name}
+        return SecretParams(
+            name=secret_name,
+            namespace=namespace,
+            secret_type=SecretType(secret_type_str),
+        )
 
     def _prompt_literal_entry(self) -> str:
         """Prompt for a single literal key=value entry.
@@ -325,14 +339,14 @@ class Kubeseal:
 
         return entries
 
-    def create_generic_secret(self, secret_params: dict[str, str]) -> None:
+    def create_generic_secret(self, secret_params: SecretParams) -> None:
         """Generate a temporary generic secret YAML file from user-provided entries.
 
         Prompts user for key=value pairs (literals) or filenames. Each entry
         is processed and passed to kubectl to create a secret.
 
         Args:
-            secret_params: Dictionary containing 'name' and 'namespace' keys.
+            secret_params: SecretParams containing name and namespace.
 
         """
         entries = self._collect_secret_entries()
@@ -345,9 +359,9 @@ class Kubeseal:
             "create",
             "secret",
             "generic",
-            secret_params["name"],
+            secret_params.name,
             "--namespace",
-            secret_params["namespace"],
+            secret_params.namespace,
             _DRY_RUN_CLIENT,
             "-o",
             "yaml",
@@ -359,13 +373,13 @@ class Kubeseal:
         with open(self._temp_file_path, "w") as f:
             subprocess.run(cmd, stdout=f, check=True)
 
-    def create_tls_secret(self, secret_params: dict[str, str]) -> None:
+    def create_tls_secret(self, secret_params: SecretParams) -> None:
         """Generate a temporary TLS secret YAML file.
 
         Expects tls.key and tls.crt files to exist in the current directory.
 
         Args:
-            secret_params: Dictionary containing 'name' and 'namespace' keys.
+            secret_params: SecretParams containing name and namespace.
 
         """
         console.step("Generating temporary TLS secret yaml file")
@@ -374,9 +388,9 @@ class Kubeseal:
             "create",
             "secret",
             "tls",
-            secret_params["name"],
+            secret_params.name,
             "--namespace",
-            secret_params["namespace"],
+            secret_params.namespace,
             "--key",
             "tls.key",
             "--cert",
@@ -390,13 +404,13 @@ class Kubeseal:
         with open(self._temp_file_path, "w") as f:
             subprocess.run(cmd, stdout=f, check=True)
 
-    def create_regcred_secret(self, secret_params: dict[str, str]) -> None:
+    def create_regcred_secret(self, secret_params: SecretParams) -> None:
         """Generate a temporary docker-registry secret YAML file.
 
         Prompts user for Docker registry credentials.
 
         Args:
-            secret_params: Dictionary containing 'name' and 'namespace' keys.
+            secret_params: SecretParams containing name and namespace.
 
         """
         console.step("Generating temporary docker-registry secret yaml file")
@@ -422,9 +436,9 @@ class Kubeseal:
             "create",
             "secret",
             "docker-registry",
-            secret_params["name"],
+            secret_params.name,
             "--namespace",
-            secret_params["namespace"],
+            secret_params.namespace,
             f"--docker-server={docker_server}",
             f"--docker-username={docker_username}",
             f"--docker-password={docker_password}",
@@ -437,13 +451,13 @@ class Kubeseal:
         with open(self._temp_file_path, "w") as f:
             subprocess.run(cmd, stdout=f, check=True)
 
-    def seal(self, secret_params: dict[str, str]) -> None:
+    def seal(self, secret_params: SecretParams) -> None:
         """Seal a secret using kubeseal.
 
         Reads the temporary secret file and outputs a sealed secret YAML file.
 
         Args:
-            secret_params: Dictionary containing 'name', 'namespace', and 'type' keys.
+            secret_params: SecretParams containing name, namespace, and secret_type.
 
         """
         console.step("Sealing secret")
@@ -451,7 +465,7 @@ class Kubeseal:
         cmd = self._build_kubeseal_cmd()
         ic(cmd)
 
-        output_file = f"{secret_params['name']}.yaml"
+        output_file = f"{secret_params.name}.yaml"
 
         with console.spinner("Sealing secret with kubeseal..."):
             with open(self._temp_file_path) as stdin_f, open(output_file, "w") as stdout_f:
@@ -462,9 +476,9 @@ class Kubeseal:
         console.summary_panel(
             "Sealed Secret Created",
             {
-                "Name": secret_params["name"],
-                "Namespace": secret_params["namespace"],
-                "Type": secret_params["type"],
+                "Name": secret_params.name,
+                "Namespace": secret_params.namespace,
+                "Type": secret_params.secret_type.value,
                 "Output": output_file,
             },
         )
@@ -600,27 +614,26 @@ class Kubeseal:
         with console.create_task_progress() as progress:
             task = progress.add_task("Re-encrypting secrets", total=len(secrets))
             for secret in secrets:
-                backup_file = f"{secret}_backup"
-                output_tmp = f"{secret}_new"
+                backup_path = secret.with_suffix(secret.suffix + "_backup")
+                output_tmp = secret.with_suffix(secret.suffix + "_new")
 
                 # Create backup of original file
-                shutil.copy2(secret, backup_file)
+                shutil.copy2(secret, backup_path)
 
                 cmd = self._build_kubeseal_cmd(extra_args=["--re-encrypt"])
                 ic(cmd)
 
                 try:
-                    with open(str(secret)) as stdin_f, open(output_tmp, "w") as stdout_f:
+                    with secret.open() as stdin_f, output_tmp.open("w") as stdout_f:
                         subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, check=True)
                     # Atomic replace on success
-                    os.replace(output_tmp, str(secret))
-                    os.remove(backup_file)
+                    output_tmp.replace(secret)
+                    backup_path.unlink()
                 except subprocess.CalledProcessError:
                     # Restore from backup on failure
-                    if os.path.exists(backup_file):
-                        os.replace(backup_file, str(secret))
-                    if os.path.exists(output_tmp):
-                        os.remove(output_tmp)
+                    if backup_path.exists():
+                        backup_path.replace(secret)
+                    output_tmp.unlink(missing_ok=True)
                     raise
 
                 self.append_argo_annotation(str(secret))

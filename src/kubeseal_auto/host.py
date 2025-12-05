@@ -9,6 +9,7 @@ import platform
 import re
 import tarfile
 import tempfile
+from pathlib import Path
 
 import requests
 from icecream import ic
@@ -68,11 +69,9 @@ class Host:
     def __init__(self) -> None:
         """Initialize Host with platform detection."""
         self.base_url: str = "https://github.com/bitnami-labs/sealed-secrets/releases/download"
-        self.bin_location: str = os.path.join(
-            os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")),
-            "kubeseal-auto",
-            "bin",
-        )
+        xdg_data_home = os.environ.get("XDG_DATA_HOME")
+        base_path = Path(xdg_data_home) if xdg_data_home else Path.home() / ".local" / "share"
+        self.bin_location: Path = base_path / "kubeseal-auto" / "bin"
         self.cpu_type: str = self._get_cpu_type()
         self.system: str = self._get_system_type()
 
@@ -114,6 +113,13 @@ class Host:
             case _:
                 raise UnsupportedPlatformError(f"Unsupported operating system: {platform.system()}")
 
+    def __repr__(self) -> str:
+        """Return a detailed string representation for debugging."""
+        return (
+            f"Host(system={self.system!r}, cpu_type={self.cpu_type!r}, "
+            f"bin_location={self.bin_location!r})"
+        )
+
     def _download_kubeseal_binary(self, version: str) -> None:
         """Download the kubeseal binary for the specified version.
 
@@ -130,14 +136,10 @@ class Host:
         normalized = normalize_version(version)
         url = f"{self.base_url}/v{normalized}/kubeseal-{normalized}-{self.system}-{self.cpu_type}.tar.gz"
         ic(url)
-        local_path = os.path.join(
-            tempfile.gettempdir(),
-            f"kubeseal-{normalized}-{self.system}-{self.cpu_type}.tar.gz",
-        )
+        local_path = Path(tempfile.gettempdir()) / f"kubeseal-{normalized}-{self.system}-{self.cpu_type}.tar.gz"
         ic(local_path)
 
-        if not os.path.exists(self.bin_location):
-            os.makedirs(self.bin_location)
+        self.bin_location.mkdir(parents=True, exist_ok=True)
 
         # Stream download with progress bar
         with requests.get(url, timeout=60, stream=True) as r:
@@ -150,7 +152,7 @@ class Host:
             with console.create_download_progress() as progress:
                 task = progress.add_task(f"kubeseal v{normalized}", total=total_size)
 
-                with open(local_path, "wb") as f:
+                with local_path.open("wb") as f:
                     for chunk in r.iter_content(chunk_size=8192):
                         if chunk:
                             f.write(chunk)
@@ -162,8 +164,7 @@ class Host:
         finally:
             # Always clean up the temporary tarball, even if extraction fails
             try:
-                if os.path.exists(local_path):
-                    os.remove(local_path)
+                local_path.unlink(missing_ok=True)
             except OSError:
                 pass  # Suppress removal errors to not mask original exception
 
@@ -213,14 +214,14 @@ class Host:
         else:
             # Fallback for Python < 3.12: manual safe extraction
             # Verify the extraction path stays within bin_location
-            extract_path = os.path.realpath(os.path.join(self.bin_location, target_name))
-            bin_location_real = os.path.realpath(self.bin_location)
-            if not extract_path.startswith(bin_location_real + os.sep):
+            extract_path = (self.bin_location / target_name).resolve()
+            bin_location_real = self.bin_location.resolve()
+            if not extract_path.is_relative_to(bin_location_real):
                 raise ValueError(f"Path traversal detected: {extract_path}")
 
             tar.extract(member, path=self.bin_location)
 
-    def get_binary_path(self, version: str) -> str:
+    def get_binary_path(self, version: str) -> Path:
         """Get the path to the kubeseal binary for the specified version.
 
         Args:
@@ -231,7 +232,7 @@ class Host:
 
         """
         normalized = normalize_version(version)
-        return f"{self.bin_location}/kubeseal-{normalized}"
+        return self.bin_location / f"kubeseal-{normalized}"
 
     def ensure_kubeseal_binary(self, version: str) -> None:
         """Ensure the kubeseal binary for the specified version exists.
@@ -247,6 +248,6 @@ class Host:
 
         """
         binary_path = self.get_binary_path(version)
-        if not os.path.exists(binary_path):
-            console.info(f"kubeseal binary not found at {console.highlight(binary_path)}")
+        if not binary_path.exists():
+            console.info(f"kubeseal binary not found at {console.highlight(str(binary_path))}")
             self._download_kubeseal_binary(version)

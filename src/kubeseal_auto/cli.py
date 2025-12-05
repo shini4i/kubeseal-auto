@@ -14,6 +14,7 @@ from icecream import ic
 from kubeseal_auto import __version__, console
 from kubeseal_auto.exceptions import ClusterConnectionError, SecretParsingError
 from kubeseal_auto.kubeseal import Kubeseal
+from kubeseal_auto.models import SecretParams, SecretType
 
 
 def create_new_secret(kubeseal: Kubeseal) -> None:
@@ -29,12 +30,12 @@ def create_new_secret(kubeseal: Kubeseal) -> None:
     secret_params = kubeseal.collect_parameters()
     ic(secret_params)
 
-    match secret_params["type"]:
-        case "generic":
+    match secret_params.secret_type:
+        case SecretType.GENERIC:
             kubeseal.create_generic_secret(secret_params=secret_params)
-        case "tls":
+        case SecretType.TLS:
             kubeseal.create_tls_secret(secret_params=secret_params)
-        case "docker-registry":
+        case SecretType.DOCKER_REGISTRY:
             kubeseal.create_regcred_secret(secret_params=secret_params)
 
     kubeseal.seal(secret_params=secret_params)
@@ -62,10 +63,11 @@ def edit_secret(kubeseal: Kubeseal, file: str) -> None:
     if secret is None:
         raise click.ClickException(f"Secret file '{file}' is empty")
 
-    secret_params = {
-        "name": secret["metadata"]["name"],
-        "namespace": secret["metadata"]["namespace"],
-    }
+    secret_params = SecretParams(
+        name=secret["metadata"]["name"],
+        namespace=secret["metadata"]["namespace"],
+        secret_type=SecretType.GENERIC,
+    )
     ic(secret_params)
     kubeseal.create_generic_secret(secret_params=secret_params)
     kubeseal.merge(file)

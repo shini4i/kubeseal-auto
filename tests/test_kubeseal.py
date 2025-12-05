@@ -6,6 +6,7 @@ import pytest
 
 from kubeseal_auto.exceptions import SecretParsingError
 from kubeseal_auto.kubeseal import Kubeseal, _validate_k8s_name
+from kubeseal_auto.models import SecretParams, SecretType
 
 
 class TestValidateK8sName:
@@ -64,7 +65,7 @@ class TestKubesealSecretCreation:
     def test_create_generic_secret(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a generic secret with key-value pairs."""
         kubeseal = Kubeseal(select_context=False)
-        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
+        secret_params = SecretParams(name="test-secret", namespace="default", secret_type=SecretType.GENERIC)
 
         with (
             patch("questionary.select") as mock_select,
@@ -91,7 +92,7 @@ class TestKubesealSecretCreation:
     def test_create_generic_secret_with_file(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a generic secret from file."""
         kubeseal = Kubeseal(select_context=False)
-        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
+        secret_params = SecretParams(name="test-secret", namespace="default", secret_type=SecretType.GENERIC)
 
         with (
             patch("questionary.select") as mock_select,
@@ -110,7 +111,7 @@ class TestKubesealSecretCreation:
     def test_create_generic_secret_bulk_literals(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a generic secret with bulk literals."""
         kubeseal = Kubeseal(select_context=False)
-        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
+        secret_params = SecretParams(name="test-secret", namespace="default", secret_type=SecretType.GENERIC)
 
         with (
             patch("questionary.select") as mock_select,
@@ -131,7 +132,7 @@ class TestKubesealSecretCreation:
     def test_create_generic_secret_mixed_entries(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a generic secret with mixed entry types."""
         kubeseal = Kubeseal(select_context=False)
-        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
+        secret_params = SecretParams(name="test-secret", namespace="default", secret_type=SecretType.GENERIC)
 
         with (
             patch("questionary.select") as mock_select,
@@ -155,7 +156,7 @@ class TestKubesealSecretCreation:
     def test_create_tls_secret(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a TLS secret."""
         kubeseal = Kubeseal(select_context=False)
-        secret_params = {"name": "test-tls-secret", "namespace": "default", "type": "tls"}
+        secret_params = SecretParams(name="test-tls-secret", namespace="default", secret_type=SecretType.TLS)
 
         with patch("builtins.open", mock_open()):
             kubeseal.create_tls_secret(secret_params)
@@ -180,7 +181,7 @@ class TestKubesealSecretCreation:
     def test_create_regcred_secret(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a docker-registry secret."""
         kubeseal = Kubeseal(select_context=False)
-        secret_params = {"name": "test-regcred-secret", "namespace": "default", "type": "docker-registry"}
+        secret_params = SecretParams(name="test-regcred-secret", namespace="default", secret_type=SecretType.DOCKER_REGISTRY)
 
         docker_server = "https://index.docker.io/v1/"
         docker_username = "testuser"
@@ -222,7 +223,7 @@ class TestKubesealSealing:
     def test_seal(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test sealing a secret."""
         kubeseal = Kubeseal(select_context=False)
-        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
+        secret_params = SecretParams(name="test-secret", namespace="default", secret_type=SecretType.GENERIC)
 
         with patch(
             "builtins.open", mock_open(read_data="apiVersion: v1\nkind: Secret\nmetadata:\n  name: test-secret")
@@ -240,7 +241,7 @@ class TestKubesealSealing:
     def test_seal_detached_mode(self, mock_subprocess):
         """Test sealing a secret in detached mode."""
         kubeseal = Kubeseal(select_context=False, certificate="test-cert.crt")
-        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
+        secret_params = SecretParams(name="test-secret", namespace="default", secret_type=SecretType.GENERIC)
 
         with patch(
             "builtins.open", mock_open(read_data="apiVersion: v1\nkind: Secret\nmetadata:\n  name: test-secret")
@@ -362,9 +363,9 @@ class TestKubesealCollectParameters:
 
             params = kubeseal.collect_parameters()
 
-            assert params["namespace"] == "default"
-            assert params["type"] == "generic"
-            assert params["name"] == "my-secret"
+            assert params.namespace == "default"
+            assert params.secret_type == SecretType.GENERIC
+            assert params.name == "my-secret"
 
     def test_collect_parameters_detached_mode(self):
         """Test collecting parameters in detached mode."""
@@ -379,6 +380,6 @@ class TestKubesealCollectParameters:
 
             params = kubeseal.collect_parameters()
 
-            assert params["namespace"] == "custom-namespace"
-            assert params["type"] == "generic"
-            assert params["name"] == "my-secret"
+            assert params.namespace == "custom-namespace"
+            assert params.secret_type == SecretType.GENERIC
+            assert params.name == "my-secret"

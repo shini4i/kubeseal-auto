@@ -4,6 +4,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from kubeseal_auto.models import ControllerInfo
+
 
 @pytest.fixture
 def mock_kube_contexts():
@@ -24,11 +26,11 @@ def mock_kube_config():
 def mock_controller():
     """Mock SealedSecrets controller discovery."""
     with patch("kubeseal_auto.cluster.Cluster._find_sealed_secrets_controller") as mock:
-        mock.return_value = {
-            "name": "sealed-secrets-controller",
-            "namespace": "kube-system",
-            "version": "v0.26.0",
-        }
+        mock.return_value = ControllerInfo(
+            name="sealed-secrets-controller",
+            namespace="kube-system",
+            version="v0.26.0",
+        )
         yield mock
 
 

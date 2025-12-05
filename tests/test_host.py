@@ -1,6 +1,7 @@
 """Tests for host.py module."""
 
 import os
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -73,10 +74,11 @@ class TestHostInit:
             assert host.cpu_type == "amd64"
             assert host.system == "linux"
             # Verify XDG-compliant path structure (must match Host.__init__ exactly)
-            expected_xdg_base = os.environ.get(
-                "XDG_DATA_HOME", os.path.expanduser("~/.local/share")
-            )
-            expected_bin_path = os.path.join(expected_xdg_base, "kubeseal-auto", "bin")
+            xdg_data_home = os.environ.get("XDG_DATA_HOME")
+            if xdg_data_home:
+                expected_bin_path = Path(xdg_data_home) / "kubeseal-auto" / "bin"
+            else:
+                expected_bin_path = Path.home() / ".local" / "share" / "kubeseal-auto" / "bin"
             assert host.bin_location == expected_bin_path
             assert "github.com/bitnami-labs/sealed-secrets" in host.base_url
 
@@ -89,7 +91,7 @@ class TestHostBinaryManagement:
         with (
             patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
             patch("kubeseal_auto.host.platform.system", return_value="Linux"),
-            patch("kubeseal_auto.host.os.path.exists", return_value=True),
+            patch.object(Path, "exists", return_value=True),
         ):
             host = Host()
 
@@ -102,7 +104,7 @@ class TestHostBinaryManagement:
         with (
             patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
             patch("kubeseal_auto.host.platform.system", return_value="Linux"),
-            patch("kubeseal_auto.host.os.path.exists", return_value=False),
+            patch.object(Path, "exists", return_value=False),
         ):
             host = Host()
 
@@ -119,7 +121,7 @@ class TestHostBinaryManagement:
         with (
             patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
             patch("kubeseal_auto.host.platform.system", return_value="Linux"),
-            patch("kubeseal_auto.host.os.path.exists", return_value=False),
+            patch.object(Path, "exists", return_value=False),
         ):
             host = Host()
 
@@ -133,9 +135,8 @@ class TestHostBinaryManagement:
         with (
             patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
             patch("kubeseal_auto.host.platform.system", return_value="Linux"),
-            patch("kubeseal_auto.host.os.path.exists", return_value=False),
-            patch("kubeseal_auto.host.os.makedirs"),
-            patch("kubeseal_auto.host.os.remove"),
+            patch.object(Path, "mkdir"),
+            patch.object(Path, "unlink"),
         ):
             host = Host()
 
@@ -147,7 +148,7 @@ class TestHostBinaryManagement:
 
             with (
                 patch("kubeseal_auto.host.requests.get", return_value=mock_response),
-                patch("builtins.open", MagicMock()),
+                patch.object(Path, "open", MagicMock()),
                 patch("kubeseal_auto.host.tarfile.open") as mock_tarfile,
             ):
                 mock_tar = MagicMock()
@@ -170,8 +171,7 @@ class TestHostBinaryManagement:
         with (
             patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
             patch("kubeseal_auto.host.platform.system", return_value="Linux"),
-            patch("kubeseal_auto.host.os.path.exists", return_value=False),
-            patch("kubeseal_auto.host.os.makedirs"),
+            patch.object(Path, "mkdir"),
         ):
             host = Host()
 
@@ -196,11 +196,9 @@ class TestHostBinaryManagement:
         ):
             host = Host()
 
-            # First call returns False (bin doesn't exist), second returns True (tar file)
             with (
-                patch("kubeseal_auto.host.os.path.exists", side_effect=[False, True]),
-                patch("kubeseal_auto.host.os.makedirs") as mock_makedirs,
-                patch("kubeseal_auto.host.os.remove"),
+                patch.object(Path, "mkdir") as mock_mkdir,
+                patch.object(Path, "unlink"),
             ):
                 mock_response = MagicMock()
                 mock_response.status_code = 200
@@ -210,7 +208,7 @@ class TestHostBinaryManagement:
 
                 with (
                     patch("kubeseal_auto.host.requests.get", return_value=mock_response),
-                    patch("builtins.open", MagicMock()),
+                    patch.object(Path, "open", MagicMock()),
                     patch("kubeseal_auto.host.tarfile.open") as mock_tarfile,
                 ):
                     mock_tar = MagicMock()
@@ -223,4 +221,4 @@ class TestHostBinaryManagement:
                     mock_tarfile.return_value = mock_tar
 
                     host._download_kubeseal_binary("0.26.0")
-                    mock_makedirs.assert_called_once()
+                    mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)

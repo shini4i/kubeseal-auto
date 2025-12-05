@@ -9,6 +9,7 @@ from click.testing import CliRunner
 from kubeseal_auto import __version__
 from kubeseal_auto.cli import cli, create_new_secret, edit_secret
 from kubeseal_auto.exceptions import SecretParsingError
+from kubeseal_auto.models import SecretParams, SecretType
 
 
 class TestCliVersion:
@@ -182,44 +183,47 @@ class TestCreateNewSecret:
     def test_create_generic_secret(self):
         """Test creating a generic secret."""
         mock_kubeseal = MagicMock()
-        mock_kubeseal.collect_parameters.return_value = {
-            "name": "test-secret",
-            "namespace": "default",
-            "type": "generic",
-        }
+        secret_params = SecretParams(
+            name="test-secret",
+            namespace="default",
+            secret_type=SecretType.GENERIC,
+        )
+        mock_kubeseal.collect_parameters.return_value = secret_params
 
         create_new_secret(mock_kubeseal)
 
         mock_kubeseal.create_generic_secret.assert_called_once()
-        mock_kubeseal.seal.assert_called_once_with(secret_params={"name": "test-secret", "namespace": "default", "type": "generic"})
+        mock_kubeseal.seal.assert_called_once_with(secret_params=secret_params)
 
     def test_create_tls_secret(self):
         """Test creating a TLS secret."""
         mock_kubeseal = MagicMock()
-        mock_kubeseal.collect_parameters.return_value = {
-            "name": "tls-secret",
-            "namespace": "default",
-            "type": "tls",
-        }
+        secret_params = SecretParams(
+            name="tls-secret",
+            namespace="default",
+            secret_type=SecretType.TLS,
+        )
+        mock_kubeseal.collect_parameters.return_value = secret_params
 
         create_new_secret(mock_kubeseal)
 
         mock_kubeseal.create_tls_secret.assert_called_once()
-        mock_kubeseal.seal.assert_called_once_with(secret_params={"name": "tls-secret", "namespace": "default", "type": "tls"})
+        mock_kubeseal.seal.assert_called_once_with(secret_params=secret_params)
 
     def test_create_docker_registry_secret(self):
         """Test creating a docker-registry secret."""
         mock_kubeseal = MagicMock()
-        mock_kubeseal.collect_parameters.return_value = {
-            "name": "regcred",
-            "namespace": "default",
-            "type": "docker-registry",
-        }
+        secret_params = SecretParams(
+            name="regcred",
+            namespace="default",
+            secret_type=SecretType.DOCKER_REGISTRY,
+        )
+        mock_kubeseal.collect_parameters.return_value = secret_params
 
         create_new_secret(mock_kubeseal)
 
         mock_kubeseal.create_regcred_secret.assert_called_once()
-        mock_kubeseal.seal.assert_called_once_with(secret_params={"name": "regcred", "namespace": "default", "type": "docker-registry"})
+        mock_kubeseal.seal.assert_called_once_with(secret_params=secret_params)
 
 
 class TestEditSecret:
