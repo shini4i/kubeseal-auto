@@ -5,7 +5,57 @@ from unittest.mock import MagicMock, mock_open, patch
 import pytest
 
 from kubeseal_auto.exceptions import SecretParsingError
-from kubeseal_auto.kubeseal import Kubeseal
+from kubeseal_auto.kubeseal import Kubeseal, _validate_k8s_name
+
+
+class TestValidateK8sName:
+    """Tests for Kubernetes name validation."""
+
+    def test_valid_simple_name(self):
+        """Test valid simple name."""
+        assert _validate_k8s_name("my-secret") is True
+
+    def test_valid_name_with_dots(self):
+        """Test valid name with dots."""
+        assert _validate_k8s_name("my.secret.name") is True
+
+    def test_valid_name_with_numbers(self):
+        """Test valid name with numbers."""
+        assert _validate_k8s_name("secret123") is True
+
+    def test_empty_name(self):
+        """Test empty name returns error."""
+        result = _validate_k8s_name("")
+        assert isinstance(result, str)
+        assert "empty" in result.lower()
+
+    def test_name_too_long(self):
+        """Test name exceeding max length."""
+        long_name = "a" * 254
+        result = _validate_k8s_name(long_name)
+        assert isinstance(result, str)
+        assert "253" in result
+
+    def test_name_with_uppercase(self):
+        """Test name with uppercase letters is invalid."""
+        result = _validate_k8s_name("MySecret")
+        assert isinstance(result, str)
+        assert "lowercase" in result.lower()
+
+    def test_name_starting_with_hyphen(self):
+        """Test name starting with hyphen is invalid."""
+        result = _validate_k8s_name("-my-secret")
+        assert isinstance(result, str)
+
+    def test_name_ending_with_hyphen(self):
+        """Test name ending with hyphen is invalid."""
+        result = _validate_k8s_name("my-secret-")
+        assert isinstance(result, str)
+
+    def test_name_with_underscore(self):
+        """Test name with underscore is invalid."""
+        result = _validate_k8s_name("my_secret")
+        assert isinstance(result, str)
 
 
 class TestKubesealSecretCreation:
@@ -15,13 +65,15 @@ class TestKubesealSecretCreation:
         """Test creating a generic secret with key-value pairs."""
         kubeseal = Kubeseal(select_context=False)
         secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
-        secrets_input = "key1=value1\nkey2=value2"
 
         with (
-            patch("questionary.text") as mock_questionary_text,
+            patch("questionary.select") as mock_select,
+            patch("questionary.text") as mock_text,
             patch("builtins.open", mock_open()),
         ):
-            mock_questionary_text.return_value.unsafe_ask.return_value = secrets_input
+            # Simulate: literal -> key1=value1, literal -> key2=value2, done
+            mock_select.return_value.unsafe_ask.side_effect = ["literal", "literal", "done"]
+            mock_text.return_value.unsafe_ask.side_effect = ["key1=value1", "key2=value2"]
             kubeseal.create_generic_secret(secret_params)
 
             mock_subprocess.assert_called_once()
@@ -40,18 +92,65 @@ class TestKubesealSecretCreation:
         """Test creating a generic secret from file."""
         kubeseal = Kubeseal(select_context=False)
         secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
-        secrets_input = "config.json"
 
         with (
-            patch("questionary.text") as mock_questionary_text,
+            patch("questionary.select") as mock_select,
+            patch("questionary.path") as mock_path,
             patch("builtins.open", mock_open()),
         ):
-            mock_questionary_text.return_value.unsafe_ask.return_value = secrets_input
+            # Simulate: file -> config.json, done
+            mock_select.return_value.unsafe_ask.side_effect = ["file", "done"]
+            mock_path.return_value.unsafe_ask.return_value = "config.json"
             kubeseal.create_generic_secret(secret_params)
 
             mock_subprocess.assert_called_once()
             cmd = mock_subprocess.call_args[0][0]
             assert "--from-file=config.json" in cmd
+
+    def test_create_generic_secret_bulk_literals(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
+        """Test creating a generic secret with bulk literals."""
+        kubeseal = Kubeseal(select_context=False)
+        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
+
+        with (
+            patch("questionary.select") as mock_select,
+            patch("questionary.text") as mock_text,
+            patch("builtins.open", mock_open()),
+        ):
+            # Simulate: bulk -> multiline input, done
+            mock_select.return_value.unsafe_ask.side_effect = ["bulk", "done"]
+            mock_text.return_value.unsafe_ask.return_value = "key1=value1\nkey2=value2\nkey3=value3"
+            kubeseal.create_generic_secret(secret_params)
+
+            mock_subprocess.assert_called_once()
+            cmd = mock_subprocess.call_args[0][0]
+            assert "--from-literal=key1=value1" in cmd
+            assert "--from-literal=key2=value2" in cmd
+            assert "--from-literal=key3=value3" in cmd
+
+    def test_create_generic_secret_mixed_entries(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
+        """Test creating a generic secret with mixed entry types."""
+        kubeseal = Kubeseal(select_context=False)
+        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
+
+        with (
+            patch("questionary.select") as mock_select,
+            patch("questionary.text") as mock_text,
+            patch("questionary.path") as mock_path,
+            patch("builtins.open", mock_open()),
+        ):
+            # Simulate: literal, file, bulk, done
+            mock_select.return_value.unsafe_ask.side_effect = ["literal", "file", "bulk", "done"]
+            mock_text.return_value.unsafe_ask.side_effect = ["single=value", "bulk1=val1\nbulk2=val2"]
+            mock_path.return_value.unsafe_ask.return_value = "data.json"
+            kubeseal.create_generic_secret(secret_params)
+
+            mock_subprocess.assert_called_once()
+            cmd = mock_subprocess.call_args[0][0]
+            assert "--from-literal=single=value" in cmd
+            assert "--from-file=data.json" in cmd
+            assert "--from-literal=bulk1=val1" in cmd
+            assert "--from-literal=bulk2=val2" in cmd
 
     def test_create_tls_secret(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a TLS secret."""
@@ -123,12 +222,12 @@ class TestKubesealSealing:
     def test_seal(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test sealing a secret."""
         kubeseal = Kubeseal(select_context=False)
-        secret_name = "test-secret"
+        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
 
         with patch(
             "builtins.open", mock_open(read_data="apiVersion: v1\nkind: Secret\nmetadata:\n  name: test-secret")
         ):
-            kubeseal.seal(secret_name)
+            kubeseal.seal(secret_params=secret_params)
 
             mock_subprocess.assert_called_once()
             cmd = mock_subprocess.call_args[0][0]
@@ -141,12 +240,12 @@ class TestKubesealSealing:
     def test_seal_detached_mode(self, mock_subprocess):
         """Test sealing a secret in detached mode."""
         kubeseal = Kubeseal(select_context=False, certificate="test-cert.crt")
-        secret_name = "test-secret"
+        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
 
         with patch(
             "builtins.open", mock_open(read_data="apiVersion: v1\nkind: Secret\nmetadata:\n  name: test-secret")
         ):
-            kubeseal.seal(secret_name)
+            kubeseal.seal(secret_params=secret_params)
 
             mock_subprocess.assert_called_once()
             cmd = mock_subprocess.call_args[0][0]
@@ -253,10 +352,12 @@ class TestKubesealCollectParameters:
         kubeseal = Kubeseal(select_context=False)
 
         with (
+            patch("questionary.autocomplete") as mock_autocomplete,
             patch("questionary.select") as mock_select,
             patch("questionary.text") as mock_text,
         ):
-            mock_select.return_value.unsafe_ask.side_effect = ["default", "generic"]
+            mock_autocomplete.return_value.unsafe_ask.return_value = "default"
+            mock_select.return_value.unsafe_ask.return_value = "generic"
             mock_text.return_value.unsafe_ask.return_value = "my-secret"
 
             params = kubeseal.collect_parameters()

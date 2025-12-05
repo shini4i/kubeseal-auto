@@ -10,10 +10,10 @@ import re
 import tarfile
 import tempfile
 
-import click
 import requests
 from icecream import ic
 
+from kubeseal_auto import console
 from kubeseal_auto.exceptions import BinaryNotFoundError, UnsupportedPlatformError
 
 # Semantic version pattern for validation
@@ -34,6 +34,7 @@ def normalize_version(version: str) -> str:
 
     Raises:
         ValueError: If version is None, empty, or doesn't match semantic versioning.
+
     """
     if not version:
         raise ValueError("Version string cannot be None or empty")
@@ -61,6 +62,7 @@ class Host:
         bin_location: Local directory for storing kubeseal binaries.
         cpu_type: Detected CPU architecture (amd64 or arm64).
         system: Detected operating system (linux or darwin).
+
     """
 
     def __init__(self) -> None:
@@ -83,6 +85,7 @@ class Host:
 
         Raises:
             UnsupportedPlatformError: If the CPU architecture is not supported.
+
         """
         match platform.machine():
             case "x86_64":
@@ -101,6 +104,7 @@ class Host:
 
         Raises:
             UnsupportedPlatformError: If the operating system is not supported.
+
         """
         match platform.system():
             case "Linux":
@@ -119,8 +123,9 @@ class Host:
         Raises:
             BinaryNotFoundError: If the requested version is not available.
             ValueError: If version format is invalid.
+
         """
-        click.echo("Downloading kubeseal binary")
+        console.action("Downloading kubeseal binary")
 
         normalized = normalize_version(version)
         url = f"{self.base_url}/v{normalized}/kubeseal-{normalized}-{self.system}-{self.cpu_type}.tar.gz"
@@ -134,13 +139,22 @@ class Host:
         if not os.path.exists(self.bin_location):
             os.makedirs(self.bin_location)
 
-        click.echo(f"Downloading {url}")
-        with requests.get(url, timeout=60) as r:
+        # Stream download with progress bar
+        with requests.get(url, timeout=60, stream=True) as r:
             if r.status_code == 404:
                 raise BinaryNotFoundError(f"kubeseal version {normalized} is not available for download")
             r.raise_for_status()
-            with open(local_path, "wb") as f:
-                f.write(r.content)
+
+            total_size = int(r.headers.get("content-length", 0))
+
+            with console.create_download_progress() as progress:
+                task = progress.add_task(f"kubeseal v{normalized}", total=total_size)
+
+                with open(local_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            progress.update(task, advance=len(chunk))
 
         try:
             with tarfile.open(local_path, "r:gz") as tar:
@@ -162,6 +176,7 @@ class Host:
 
         Returns:
             The TarInfo for the kubeseal binary if found, None otherwise.
+
         """
         for member in tar.getmembers():
             if member.name == "kubeseal" and member.isfile():
@@ -182,6 +197,7 @@ class Host:
         Raises:
             ValueError: If the kubeseal binary is not found in the archive
                        or if path traversal is detected.
+
         """
         member = self._find_kubeseal_member(tar)
         if member is None:
@@ -212,6 +228,7 @@ class Host:
 
         Returns:
             The full path to the kubeseal binary.
+
         """
         normalized = normalize_version(version)
         return f"{self.bin_location}/kubeseal-{normalized}"
@@ -227,8 +244,9 @@ class Host:
         Raises:
             BinaryNotFoundError: If the binary cannot be downloaded.
             ValueError: If version format is invalid.
+
         """
         binary_path = self.get_binary_path(version)
         if not os.path.exists(binary_path):
-            click.echo(f"kubeseal binary not found at {binary_path}")
+            console.info(f"kubeseal binary not found at {console.highlight(binary_path)}")
             self._download_kubeseal_binary(version)

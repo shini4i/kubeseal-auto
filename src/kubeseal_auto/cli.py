@@ -7,7 +7,6 @@ secret management operations.
 """
 
 import click
-import colorama
 from icecream import ic
 
 from kubeseal_auto import __version__
@@ -23,6 +22,7 @@ def create_new_secret(kubeseal: Kubeseal) -> None:
 
     Args:
         kubeseal: Kubeseal instance to use for secret creation.
+
     """
     secret_params = kubeseal.collect_parameters()
     ic(secret_params)
@@ -35,7 +35,7 @@ def create_new_secret(kubeseal: Kubeseal) -> None:
         case "docker-registry":
             kubeseal.create_regcred_secret(secret_params=secret_params)
 
-    kubeseal.seal(secret_name=secret_params["name"])
+    kubeseal.seal(secret_params=secret_params)
 
 
 def edit_secret(kubeseal: Kubeseal, file: str) -> None:
@@ -50,6 +50,7 @@ def edit_secret(kubeseal: Kubeseal, file: str) -> None:
 
     Raises:
         click.ClickException: If the secret file cannot be parsed.
+
     """
     try:
         secret = kubeseal.parse_existing_secret(file)
@@ -87,7 +88,7 @@ def cli(
     backup: bool,
     version: bool,
 ) -> None:
-    """Main CLI entry point for kubeseal-auto.
+    """Process CLI arguments and execute the appropriate action.
 
     Args:
         debug: Enable debug output.
@@ -98,6 +99,7 @@ def cli(
         re_encrypt: Path to directory with secrets to re-encrypt.
         backup: Backup the controller's encryption secret.
         version: Print version and exit.
+
     """
     if not debug:
         ic.disable()
@@ -105,8 +107,6 @@ def cli(
     if version:
         click.echo(__version__)
         return
-
-    colorama.init(autoreset=True)
 
     with Kubeseal(certificate=cert, select_context=select) as kubeseal:
         if fetch:

@@ -8,12 +8,13 @@ from typing import Any
 
 import click
 import questionary
-from colorama import Fore
 from icecream import ic
 from kubernetes import client, config
 
+from kubeseal_auto import console
 from kubeseal_auto.exceptions import ControllerNotFoundError
 from kubeseal_auto.host import Host, normalize_version
+from kubeseal_auto.styles import POINTER, PROMPT_STYLE, QMARK
 
 
 class Cluster:
@@ -26,6 +27,7 @@ class Cluster:
         context: The active Kubernetes context name.
         host: Host instance for binary management.
         controller: Dictionary containing controller metadata (name, namespace, version).
+
     """
 
     def __init__(self, *, select_context: bool) -> None:
@@ -35,6 +37,7 @@ class Cluster:
             select_context: If True, prompt user to select a context.
                            If False, use the current context.
                            Must be passed as a keyword argument.
+
         """
         self.context: str = self._set_context(select_context=select_context)
         config.load_kube_config(context=self.context)
@@ -54,17 +57,24 @@ class Cluster:
 
         Raises:
             click.Abort: If user cancels context selection.
+
         """
         contexts, current_context = config.list_kube_config_contexts()
         if select_context:
             context_names: list[str] = [context["name"] for context in contexts]
-            context: str | None = questionary.select("Select context to work with", choices=context_names).ask()
+            context: str | None = questionary.select(
+                "Select context to work with",
+                choices=context_names,
+                style=PROMPT_STYLE,
+                pointer=POINTER,
+                qmark=QMARK,
+            ).ask()
             if context is None:
-                click.echo("Context selection cancelled.")
+                console.warning("Context selection cancelled.")
                 raise click.Abort()
         else:
             context = str(current_context["name"])
-        click.echo(f"===> Working with [{Fore.CYAN}{context}{Fore.RESET}] cluster")
+        console.action(f"Working with {console.highlight(context)} cluster")
         return context
 
     @staticmethod
@@ -73,6 +83,7 @@ class Cluster:
 
         Returns:
             List of namespace names.
+
         """
         ns_list: list[str] = []
 
@@ -93,37 +104,35 @@ class Cluster:
 
         Raises:
             ControllerNotFoundError: If no SealedSecrets controller is found.
+
         """
-        click.echo("===> Searching for SealedSecrets controller service...")
+        with console.spinner("Searching for SealedSecrets controller..."):
+            core_v1_api = client.CoreV1Api()
 
-        core_v1_api = client.CoreV1Api()
+            found_services: list[Any] = core_v1_api.list_service_for_all_namespaces(
+                label_selector="app.kubernetes.io/name=sealed-secrets"
+            ).items
 
-        found_services: list[Any] = core_v1_api.list_service_for_all_namespaces(
-            label_selector="app.kubernetes.io/name=sealed-secrets"
-        ).items
-
-        # Further filter out metrics services
-        found_services = [svc for svc in found_services if "metrics" not in svc.metadata.name]
+            # Further filter out metrics services
+            found_services = [svc for svc in found_services if "metrics" not in svc.metadata.name]
 
         if not found_services:
-            click.echo("===> No controller found")
+            console.error("No controller found")
             raise ControllerNotFoundError("SealedSecrets controller not found in the cluster")
 
         service = found_services[0]
         version: str = service.metadata.labels.get("app.kubernetes.io/version", "")
 
         if len(found_services) > 1:
-            click.echo(
-                f"===> Warning: Multiple services found. Using [{Fore.YELLOW}{service.metadata.name}{Fore.RESET}] "
-                f"in [{Fore.YELLOW}{service.metadata.namespace}{Fore.RESET}]."
+            console.warning(
+                f"Multiple services found. Using [yellow]{service.metadata.name}[/yellow] "
+                f"in [yellow]{service.metadata.namespace}[/yellow]."
             )
 
-        click.echo(
-            "===> Found the following controller: "
-            f"[{Fore.CYAN}{service.metadata.namespace}/{service.metadata.name}{Fore.RESET}]\n"
-            "===> Controller version: "
-            f"[{Fore.CYAN}{version}{Fore.RESET}]"
+        console.success(
+            f"Found controller: {console.highlight(f'{service.metadata.namespace}/{service.metadata.name}')}"
         )
+        console.info(f"Controller version: {console.highlight(version)}")
 
         return {
             "name": service.metadata.name,
@@ -136,6 +145,7 @@ class Cluster:
 
         Returns:
             The name of the latest sealed-secrets TLS certificate secret.
+
         """
         res = client.CoreV1Api().list_namespaced_secret(self.controller.get("namespace"))
         secrets: list[dict[str, Any]] = []
@@ -156,6 +166,7 @@ class Cluster:
 
         Args:
             version: The version of kubeseal to ensure.
+
         """
         self.host.ensure_kubeseal_binary(version=version)
 
@@ -167,6 +178,7 @@ class Cluster:
 
         Returns:
             The full path to the kubeseal binary.
+
         """
         return self.host.get_binary_path(version=version)
 
@@ -175,6 +187,7 @@ class Cluster:
 
         Returns:
             The controller service name.
+
         """
         return self.controller["name"]
 
@@ -183,6 +196,7 @@ class Cluster:
 
         Returns:
             The namespace where the controller is deployed.
+
         """
         return self.controller["namespace"]
 
@@ -194,6 +208,7 @@ class Cluster:
 
         Raises:
             ValueError: If the version format is invalid.
+
         """
         return normalize_version(self.controller["version"])
 
@@ -202,5 +217,6 @@ class Cluster:
 
         Returns:
             The active context name.
+
         """
         return self.context

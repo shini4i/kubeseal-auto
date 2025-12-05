@@ -191,7 +191,7 @@ class TestCreateNewSecret:
         create_new_secret(mock_kubeseal)
 
         mock_kubeseal.create_generic_secret.assert_called_once()
-        mock_kubeseal.seal.assert_called_once_with(secret_name="test-secret")
+        mock_kubeseal.seal.assert_called_once_with(secret_params={"name": "test-secret", "namespace": "default", "type": "generic"})
 
     def test_create_tls_secret(self):
         """Test creating a TLS secret."""
@@ -205,7 +205,7 @@ class TestCreateNewSecret:
         create_new_secret(mock_kubeseal)
 
         mock_kubeseal.create_tls_secret.assert_called_once()
-        mock_kubeseal.seal.assert_called_once_with(secret_name="tls-secret")
+        mock_kubeseal.seal.assert_called_once_with(secret_params={"name": "tls-secret", "namespace": "default", "type": "tls"})
 
     def test_create_docker_registry_secret(self):
         """Test creating a docker-registry secret."""
@@ -219,7 +219,7 @@ class TestCreateNewSecret:
         create_new_secret(mock_kubeseal)
 
         mock_kubeseal.create_regcred_secret.assert_called_once()
-        mock_kubeseal.seal.assert_called_once_with(secret_name="regcred")
+        mock_kubeseal.seal.assert_called_once_with(secret_params={"name": "regcred", "namespace": "default", "type": "docker-registry"})
 
 
 class TestEditSecret:
