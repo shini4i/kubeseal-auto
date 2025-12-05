@@ -15,15 +15,20 @@ from typing import Any
 import click
 import questionary
 import yaml
-from colorama import Fore
 from icecream import ic
+from questionary import Choice, Separator
 
+from kubeseal_auto import console
 from kubeseal_auto.cluster import Cluster
 from kubeseal_auto.exceptions import BinaryNotFoundError, SecretParsingError
+from kubeseal_auto.styles import POINTER, PROMPT_STYLE, QMARK
 
 # CLI flag constants for kubectl and kubeseal commands
 _DRY_RUN_CLIENT = "--dry-run=client"
 _FORMAT_YAML = "--format=yaml"
+
+# Special choice value for manual namespace entry
+_MANUAL_ENTRY = "__manual_entry__"
 
 
 class Kubeseal:
@@ -62,7 +67,7 @@ class Kubeseal:
         self.namespaces_list: list[str] = []
 
         if certificate is not None:
-            click.echo("===> Working in a detached mode")
+            console.info("Working in detached mode")
             self.detached_mode = True
             self.certificate = certificate
         else:
@@ -83,7 +88,7 @@ class Kubeseal:
                         "kubeseal binary not found. Please install kubeseal or ensure it's in your PATH. "
                         "See: https://github.com/bitnami-labs/sealed-secrets#installation"
                     ) from None
-                click.echo("==> Falling back to the default kubeseal binary")
+                console.warning("Falling back to the default kubeseal binary")
                 self.binary = system_binary
 
         # Create temp file with delete=False for Windows compatibility
@@ -171,15 +176,45 @@ class Kubeseal:
             Dictionary with 'namespace', 'type', and 'name' keys.
         """
         if self.detached_mode:
-            namespace = questionary.text("Provide namespace for the new secret").unsafe_ask()
-        else:
-            namespace = questionary.select(
-                "Select namespace for the new secret", choices=self.namespaces_list
+            namespace = questionary.text(
+                "Provide namespace for the new secret",
+                style=PROMPT_STYLE,
+                qmark=QMARK,
             ).unsafe_ask()
+        else:
+            # Build choices with manual entry option at top
+            namespace_choices: list[Choice | Separator | str] = [
+                Choice(title="Enter manually...", value=_MANUAL_ENTRY),
+                Separator(),
+                *self.namespaces_list,
+            ]
+            namespace = questionary.select(
+                "Select namespace for the new secret",
+                choices=namespace_choices,
+                style=PROMPT_STYLE,
+                pointer=POINTER,
+                qmark=QMARK,
+            ).unsafe_ask()
+
+            # If manual entry selected, prompt for text input
+            if namespace == _MANUAL_ENTRY:
+                namespace = questionary.text(
+                    "Enter namespace name",
+                    style=PROMPT_STYLE,
+                    qmark=QMARK,
+                ).unsafe_ask()
         secret_type = questionary.select(
-            "Select secret type to create", choices=["generic", "tls", "docker-registry"]
+            "Select secret type to create",
+            choices=["generic", "tls", "docker-registry"],
+            style=PROMPT_STYLE,
+            pointer=POINTER,
+            qmark=QMARK,
         ).unsafe_ask()
-        secret_name = questionary.text("Provide name for the new secret").unsafe_ask()
+        secret_name = questionary.text(
+            "Provide name for the new secret",
+            style=PROMPT_STYLE,
+            qmark=QMARK,
+        ).unsafe_ask()
 
         return {"namespace": namespace, "type": secret_type, "name": secret_name}
 
@@ -192,16 +227,21 @@ class Kubeseal:
         Args:
             secret_params: Dictionary containing 'name' and 'namespace' keys.
         """
-        click.echo(
-            "===> Provide literal entry/entries one per line: "
-            f"[{Fore.CYAN}literal{Fore.RESET}] key=value "
-            f"[{Fore.CYAN}file{Fore.RESET}] filename"
+        console.info(
+            "Provide literal entry/entries one per line: "
+            f"{console.highlight('literal')} key=value "
+            f"{console.highlight('file')} filename"
         )
 
-        secrets = questionary.text("Secret Entries one per line", multiline=True).unsafe_ask()
+        secrets = questionary.text(
+            "Secret Entries one per line",
+            multiline=True,
+            style=PROMPT_STYLE,
+            qmark=QMARK,
+        ).unsafe_ask()
         ic(secrets)
 
-        click.echo("===> Generating a temporary generic secret yaml file")
+        console.step("Generating temporary generic secret yaml file")
 
         cmd: list[str] = [
             "kubectl",
@@ -238,7 +278,7 @@ class Kubeseal:
         Args:
             secret_params: Dictionary containing 'name' and 'namespace' keys.
         """
-        click.echo("===> Generating a temporary tls secret yaml file")
+        console.step("Generating temporary TLS secret yaml file")
         cmd: list[str] = [
             "kubectl",
             "create",
@@ -268,11 +308,23 @@ class Kubeseal:
         Args:
             secret_params: Dictionary containing 'name' and 'namespace' keys.
         """
-        click.echo("===> Generating a temporary docker-registry secret yaml file")
+        console.step("Generating temporary docker-registry secret yaml file")
 
-        docker_server = questionary.text("Provide docker-server").unsafe_ask()
-        docker_username = questionary.text("Provide docker-username").unsafe_ask()
-        docker_password = questionary.password("Provide docker-password").unsafe_ask()
+        docker_server = questionary.text(
+            "Provide docker-server",
+            style=PROMPT_STYLE,
+            qmark=QMARK,
+        ).unsafe_ask()
+        docker_username = questionary.text(
+            "Provide docker-username",
+            style=PROMPT_STYLE,
+            qmark=QMARK,
+        ).unsafe_ask()
+        docker_password = questionary.password(
+            "Provide docker-password",
+            style=PROMPT_STYLE,
+            qmark=QMARK,
+        ).unsafe_ask()
 
         cmd: list[str] = [
             "kubectl",
@@ -302,7 +354,7 @@ class Kubeseal:
         Args:
             secret_name: Name for the output sealed secret file (without .yaml extension).
         """
-        click.echo("===> Sealing generated secret file")
+        console.action("Sealing generated secret file")
         cmd = self._build_kubeseal_cmd()
         ic(cmd)
 
@@ -311,7 +363,7 @@ class Kubeseal:
             subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, check=True)
 
         self.append_argo_annotation(filename=output_file)
-        click.echo("===> Done")
+        console.success("Done")
 
     @staticmethod
     def parse_existing_secret(secret_name: str) -> dict[str, Any] | None:
@@ -347,7 +399,7 @@ class Kubeseal:
         Args:
             secret_name: Path to the existing sealed secret file to update.
         """
-        click.echo(f"===> Updating {secret_name}")
+        console.action(f"Updating {console.highlight(secret_name)}")
         cmd = self._build_kubeseal_cmd(extra_args=["--merge-into", secret_name])
         ic(cmd)
 
@@ -355,7 +407,7 @@ class Kubeseal:
             subprocess.run(cmd, stdin=stdin_f, check=True)
 
         self.append_argo_annotation(filename=secret_name)
-        click.echo("===> Done")
+        console.success("Done")
 
     def append_argo_annotation(self, filename: str) -> None:
         """Append ArgoCD sync annotations to a sealed secret file.
@@ -370,7 +422,7 @@ class Kubeseal:
         if secret is None:
             return
 
-        click.echo("===> Appending ArgoCD related annotations")
+        console.step("Appending ArgoCD annotations")
 
         annotations: dict[str, str] = secret["metadata"].setdefault("annotations", {})
 
@@ -407,7 +459,7 @@ class Kubeseal:
         if self.cluster is None:
             raise click.ClickException("Fetching certificate is not available in detached mode")
 
-        click.echo("===> Downloading certificate for kubeseal...")
+        console.action("Downloading certificate for kubeseal...")
         cmd: list[str] = [
             self.binary,
             "--controller-namespace",
@@ -423,7 +475,7 @@ class Kubeseal:
         with open(output_file, "w") as f:
             subprocess.run(cmd, stdout=f, check=True)
 
-        click.echo(f"===> Saved to {Fore.CYAN}{output_file}")
+        console.success(f"Saved to {console.highlight(output_file)}")
 
     def reencrypt(self, src: str) -> None:
         """Re-encrypt existing SealedSecret files using the newest encryption certificate.
@@ -431,32 +483,39 @@ class Kubeseal:
         Args:
             src: Path to the directory containing SealedSecret files.
         """
-        for secret in self._find_sealed_secrets(src):
-            click.echo(f"Re-encrypting {secret}")
-            backup_file = f"{secret}_backup"
-            output_tmp = f"{secret}_new"
+        secrets = self._find_sealed_secrets(src)
+        if not secrets:
+            console.warning("No SealedSecret files found")
+            return
 
-            # Create backup of original file
-            shutil.copy2(secret, backup_file)
+        with console.create_task_progress() as progress:
+            task = progress.add_task("Re-encrypting secrets", total=len(secrets))
+            for secret in secrets:
+                backup_file = f"{secret}_backup"
+                output_tmp = f"{secret}_new"
 
-            cmd = self._build_kubeseal_cmd(extra_args=["--re-encrypt"])
-            ic(cmd)
+                # Create backup of original file
+                shutil.copy2(secret, backup_file)
 
-            try:
-                with open(str(secret)) as stdin_f, open(output_tmp, "w") as stdout_f:
-                    subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, check=True)
-                # Atomic replace on success
-                os.replace(output_tmp, str(secret))
-                os.remove(backup_file)
-            except subprocess.CalledProcessError:
-                # Restore from backup on failure
-                if os.path.exists(backup_file):
-                    os.replace(backup_file, str(secret))
-                if os.path.exists(output_tmp):
-                    os.remove(output_tmp)
-                raise
+                cmd = self._build_kubeseal_cmd(extra_args=["--re-encrypt"])
+                ic(cmd)
 
-            self.append_argo_annotation(str(secret))
+                try:
+                    with open(str(secret)) as stdin_f, open(output_tmp, "w") as stdout_f:
+                        subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, check=True)
+                    # Atomic replace on success
+                    os.replace(output_tmp, str(secret))
+                    os.remove(backup_file)
+                except subprocess.CalledProcessError:
+                    # Restore from backup on failure
+                    if os.path.exists(backup_file):
+                        os.replace(backup_file, str(secret))
+                    if os.path.exists(output_tmp):
+                        os.remove(output_tmp)
+                    raise
+
+                self.append_argo_annotation(str(secret))
+                progress.update(task, advance=1)
 
     def backup(self) -> None:
         """Create a backup of the latest SealedSecret controller's encryption secret."""

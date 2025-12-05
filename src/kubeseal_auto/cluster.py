@@ -8,12 +8,13 @@ from typing import Any
 
 import click
 import questionary
-from colorama import Fore
 from icecream import ic
 from kubernetes import client, config
 
+from kubeseal_auto import console
 from kubeseal_auto.exceptions import ControllerNotFoundError
 from kubeseal_auto.host import Host, normalize_version
+from kubeseal_auto.styles import POINTER, PROMPT_STYLE, QMARK
 
 
 class Cluster:
@@ -58,13 +59,19 @@ class Cluster:
         contexts, current_context = config.list_kube_config_contexts()
         if select_context:
             context_names: list[str] = [context["name"] for context in contexts]
-            context: str | None = questionary.select("Select context to work with", choices=context_names).ask()
+            context: str | None = questionary.select(
+                "Select context to work with",
+                choices=context_names,
+                style=PROMPT_STYLE,
+                pointer=POINTER,
+                qmark=QMARK,
+            ).ask()
             if context is None:
-                click.echo("Context selection cancelled.")
+                console.warning("Context selection cancelled.")
                 raise click.Abort()
         else:
             context = str(current_context["name"])
-        click.echo(f"===> Working with [{Fore.CYAN}{context}{Fore.RESET}] cluster")
+        console.action(f"Working with {console.highlight(context)} cluster")
         return context
 
     @staticmethod
@@ -94,7 +101,7 @@ class Cluster:
         Raises:
             ControllerNotFoundError: If no SealedSecrets controller is found.
         """
-        click.echo("===> Searching for SealedSecrets controller service...")
+        console.action("Searching for SealedSecrets controller service...")
 
         core_v1_api = client.CoreV1Api()
 
@@ -106,24 +113,22 @@ class Cluster:
         found_services = [svc for svc in found_services if "metrics" not in svc.metadata.name]
 
         if not found_services:
-            click.echo("===> No controller found")
+            console.error("No controller found")
             raise ControllerNotFoundError("SealedSecrets controller not found in the cluster")
 
         service = found_services[0]
         version: str = service.metadata.labels.get("app.kubernetes.io/version", "")
 
         if len(found_services) > 1:
-            click.echo(
-                f"===> Warning: Multiple services found. Using [{Fore.YELLOW}{service.metadata.name}{Fore.RESET}] "
-                f"in [{Fore.YELLOW}{service.metadata.namespace}{Fore.RESET}]."
+            console.warning(
+                f"Multiple services found. Using [yellow]{service.metadata.name}[/yellow] "
+                f"in [yellow]{service.metadata.namespace}[/yellow]."
             )
 
-        click.echo(
-            "===> Found the following controller: "
-            f"[{Fore.CYAN}{service.metadata.namespace}/{service.metadata.name}{Fore.RESET}]\n"
-            "===> Controller version: "
-            f"[{Fore.CYAN}{version}{Fore.RESET}]"
+        console.success(
+            f"Found controller: {console.highlight(f'{service.metadata.namespace}/{service.metadata.name}')}"
         )
+        console.info(f"Controller version: {console.highlight(version)}")
 
         return {
             "name": service.metadata.name,

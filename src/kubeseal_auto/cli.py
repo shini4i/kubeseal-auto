@@ -7,7 +7,6 @@ secret management operations.
 """
 
 import click
-import colorama
 from icecream import ic
 
 from kubeseal_auto import __version__
@@ -105,8 +104,6 @@ def cli(
     if version:
         click.echo(__version__)
         return
-
-    colorama.init(autoreset=True)
 
     with Kubeseal(certificate=cert, select_context=select) as kubeseal:
         if fetch:
