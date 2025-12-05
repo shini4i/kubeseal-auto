@@ -159,10 +159,31 @@ class Host:
             with open(local_path, "wb") as f:
                 f.write(r.content)
 
-        with tarfile.open(local_path, "r:gz") as tar:
-            self._safe_extract_kubeseal(tar, normalized)
+        try:
+            with tarfile.open(local_path, "r:gz") as tar:
+                self._safe_extract_kubeseal(tar, normalized)
+        finally:
+            # Always clean up the temporary tarball, even if extraction fails
+            try:
+                if os.path.exists(local_path):
+                    os.remove(local_path)
+            except OSError:
+                pass  # Suppress removal errors to not mask original exception
 
-        os.remove(local_path)
+    @staticmethod
+    def _find_kubeseal_member(tar: tarfile.TarFile) -> tarfile.TarInfo | None:
+        """Find the kubeseal binary member in a tar archive.
+
+        Args:
+            tar: The open TarFile object to search.
+
+        Returns:
+            The TarInfo for the kubeseal binary if found, None otherwise.
+        """
+        for member in tar.getmembers():
+            if member.name == "kubeseal" and member.isfile():
+                return member
+        return None
 
     def _safe_extract_kubeseal(self, tar: tarfile.TarFile, version: str) -> None:
         """Safely extract the kubeseal binary from a tar archive.
@@ -179,34 +200,26 @@ class Host:
             ValueError: If the kubeseal binary is not found in the archive
                        or if path traversal is detected.
         """
+        member = self._find_kubeseal_member(tar)
+        if member is None:
+            raise ValueError(f"kubeseal binary not found in archive for version {version}")
+
         target_name = f"kubeseal-{version}"
+        member.name = target_name
 
         # Check if data_filter is available (Python 3.12+)
         if hasattr(tarfile, "data_filter"):
             # Use the safe data_filter for extraction
-            for member in tar.getmembers():
-                if member.name == "kubeseal" and member.isfile():
-                    # Create a modified member with the versioned name
-                    member.name = target_name
-                    tar.extract(member, path=self.bin_location, filter="data")
-                    return
-            # Binary not found in archive
-            raise ValueError(f"kubeseal binary not found in archive for version {version}")
+            tar.extract(member, path=self.bin_location, filter="data")
         else:
             # Fallback for Python < 3.12: manual safe extraction
-            for member in tar.getmembers():
-                if member.name == "kubeseal" and member.isfile():
-                    # Verify the extraction path stays within bin_location
-                    extract_path = os.path.realpath(os.path.join(self.bin_location, target_name))
-                    bin_location_real = os.path.realpath(self.bin_location)
-                    if not extract_path.startswith(bin_location_real + os.sep):
-                        raise ValueError(f"Path traversal detected: {extract_path}")
+            # Verify the extraction path stays within bin_location
+            extract_path = os.path.realpath(os.path.join(self.bin_location, target_name))
+            bin_location_real = os.path.realpath(self.bin_location)
+            if not extract_path.startswith(bin_location_real + os.sep):
+                raise ValueError(f"Path traversal detected: {extract_path}")
 
-                    member.name = target_name
-                    tar.extract(member, path=self.bin_location)
-                    return
-            # Binary not found in archive
-            raise ValueError(f"kubeseal binary not found in archive for version {version}")
+            tar.extract(member, path=self.bin_location)
 
     def get_binary_path(self, version: str) -> str:
         """Get the path to the kubeseal binary for the specified version.
