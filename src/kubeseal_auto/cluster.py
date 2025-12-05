@@ -27,6 +27,7 @@ class Cluster:
         context: The active Kubernetes context name.
         host: Host instance for binary management.
         controller: Dictionary containing controller metadata (name, namespace, version).
+
     """
 
     def __init__(self, *, select_context: bool) -> None:
@@ -36,6 +37,7 @@ class Cluster:
             select_context: If True, prompt user to select a context.
                            If False, use the current context.
                            Must be passed as a keyword argument.
+
         """
         self.context: str = self._set_context(select_context=select_context)
         config.load_kube_config(context=self.context)
@@ -55,6 +57,7 @@ class Cluster:
 
         Raises:
             click.Abort: If user cancels context selection.
+
         """
         contexts, current_context = config.list_kube_config_contexts()
         if select_context:
@@ -80,6 +83,7 @@ class Cluster:
 
         Returns:
             List of namespace names.
+
         """
         ns_list: list[str] = []
 
@@ -100,6 +104,7 @@ class Cluster:
 
         Raises:
             ControllerNotFoundError: If no SealedSecrets controller is found.
+
         """
         with console.spinner("Searching for SealedSecrets controller..."):
             core_v1_api = client.CoreV1Api()
@@ -140,6 +145,7 @@ class Cluster:
 
         Returns:
             The name of the latest sealed-secrets TLS certificate secret.
+
         """
         res = client.CoreV1Api().list_namespaced_secret(self.controller.get("namespace"))
         secrets: list[dict[str, Any]] = []
@@ -160,6 +166,7 @@ class Cluster:
 
         Args:
             version: The version of kubeseal to ensure.
+
         """
         self.host.ensure_kubeseal_binary(version=version)
 
@@ -171,6 +178,7 @@ class Cluster:
 
         Returns:
             The full path to the kubeseal binary.
+
         """
         return self.host.get_binary_path(version=version)
 
@@ -179,6 +187,7 @@ class Cluster:
 
         Returns:
             The controller service name.
+
         """
         return self.controller["name"]
 
@@ -187,6 +196,7 @@ class Cluster:
 
         Returns:
             The namespace where the controller is deployed.
+
         """
         return self.controller["namespace"]
 
@@ -198,6 +208,7 @@ class Cluster:
 
         Raises:
             ValueError: If the version format is invalid.
+
         """
         return normalize_version(self.controller["version"])
 
@@ -206,5 +217,6 @@ class Cluster:
 
         Returns:
             The active context name.
+
         """
         return self.context

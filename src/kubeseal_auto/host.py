@@ -34,6 +34,7 @@ def normalize_version(version: str) -> str:
 
     Raises:
         ValueError: If version is None, empty, or doesn't match semantic versioning.
+
     """
     if not version:
         raise ValueError("Version string cannot be None or empty")
@@ -61,6 +62,7 @@ class Host:
         bin_location: Local directory for storing kubeseal binaries.
         cpu_type: Detected CPU architecture (amd64 or arm64).
         system: Detected operating system (linux or darwin).
+
     """
 
     def __init__(self) -> None:
@@ -83,6 +85,7 @@ class Host:
 
         Raises:
             UnsupportedPlatformError: If the CPU architecture is not supported.
+
         """
         match platform.machine():
             case "x86_64":
@@ -101,6 +104,7 @@ class Host:
 
         Raises:
             UnsupportedPlatformError: If the operating system is not supported.
+
         """
         match platform.system():
             case "Linux":
@@ -119,6 +123,7 @@ class Host:
         Raises:
             BinaryNotFoundError: If the requested version is not available.
             ValueError: If version format is invalid.
+
         """
         console.action("Downloading kubeseal binary")
 
@@ -171,6 +176,7 @@ class Host:
 
         Returns:
             The TarInfo for the kubeseal binary if found, None otherwise.
+
         """
         for member in tar.getmembers():
             if member.name == "kubeseal" and member.isfile():
@@ -191,6 +197,7 @@ class Host:
         Raises:
             ValueError: If the kubeseal binary is not found in the archive
                        or if path traversal is detected.
+
         """
         member = self._find_kubeseal_member(tar)
         if member is None:
@@ -221,6 +228,7 @@ class Host:
 
         Returns:
             The full path to the kubeseal binary.
+
         """
         normalized = normalize_version(version)
         return f"{self.bin_location}/kubeseal-{normalized}"
@@ -236,6 +244,7 @@ class Host:
         Raises:
             BinaryNotFoundError: If the binary cannot be downloaded.
             ValueError: If version format is invalid.
+
         """
         binary_path = self.get_binary_path(version)
         if not os.path.exists(binary_path):

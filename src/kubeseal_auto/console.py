@@ -43,6 +43,7 @@ def info(message: str) -> None:
 
     Args:
         message: The message to display.
+
     """
     console.print(f"[info]ℹ[/info] {message}")
 
@@ -52,6 +53,7 @@ def success(message: str) -> None:
 
     Args:
         message: The message to display.
+
     """
     console.print(f"[success]✓[/success] {message}")
 
@@ -61,6 +63,7 @@ def warning(message: str) -> None:
 
     Args:
         message: The message to display.
+
     """
     console.print(f"[warning]⚠[/warning] {message}")
 
@@ -70,6 +73,7 @@ def error(message: str) -> None:
 
     Args:
         message: The message to display.
+
     """
     console.print(f"[error]✗[/error] {message}")
 
@@ -79,6 +83,7 @@ def action(message: str) -> None:
 
     Args:
         message: The message to display.
+
     """
     console.print(f"[info]→[/info] {message}")
 
@@ -88,6 +93,7 @@ def step(message: str) -> None:
 
     Args:
         message: The message to display.
+
     """
     console.print(f"[muted]•[/muted] {message}")
 
@@ -100,6 +106,7 @@ def highlight(text: str) -> str:
 
     Returns:
         Text wrapped in Rich markup for highlighting.
+
     """
     return f"[highlight]{text}[/highlight]"
 
@@ -113,6 +120,7 @@ def spinner(message: str) -> Generator[None, None, None]:
 
     Yields:
         None
+
     """
     with console.status(f"[info]{message}[/info]", spinner="dots"):
         yield
@@ -123,6 +131,7 @@ def create_download_progress() -> Progress:
 
     Returns:
         A configured Progress instance for download operations.
+
     """
     return Progress(
         SpinnerColumn(),
@@ -141,6 +150,7 @@ def create_task_progress() -> Progress:
 
     Returns:
         A configured Progress instance for batch operations.
+
     """
     return Progress(
         SpinnerColumn(),
@@ -158,6 +168,7 @@ def summary_panel(title: str, items: dict[str, str]) -> None:
     Args:
         title: Title for the panel.
         items: Dictionary of label -> value pairs to display.
+
     """
     table = Table.grid(padding=(0, 2))
     table.add_column(style="bold")

@@ -22,6 +22,7 @@ def create_new_secret(kubeseal: Kubeseal) -> None:
 
     Args:
         kubeseal: Kubeseal instance to use for secret creation.
+
     """
     secret_params = kubeseal.collect_parameters()
     ic(secret_params)
@@ -49,6 +50,7 @@ def edit_secret(kubeseal: Kubeseal, file: str) -> None:
 
     Raises:
         click.ClickException: If the secret file cannot be parsed.
+
     """
     try:
         secret = kubeseal.parse_existing_secret(file)
@@ -86,7 +88,7 @@ def cli(
     backup: bool,
     version: bool,
 ) -> None:
-    """Main CLI entry point for kubeseal-auto.
+    """Process CLI arguments and execute the appropriate action.
 
     Args:
         debug: Enable debug output.
@@ -97,6 +99,7 @@ def cli(
         re_encrypt: Path to directory with secrets to re-encrypt.
         backup: Backup the controller's encryption secret.
         version: Print version and exit.
+
     """
     if not debug:
         ic.disable()

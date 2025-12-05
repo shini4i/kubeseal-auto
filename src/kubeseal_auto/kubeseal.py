@@ -39,6 +39,7 @@ def _validate_k8s_name(name: str) -> bool | str:
 
     Returns:
         True if valid, or an error message string if invalid.
+
     """
     if not name:
         return "Name cannot be empty"
@@ -65,6 +66,7 @@ class Kubeseal:
         current_context_name: Current Kubernetes context name.
         namespaces_list: List of available namespaces.
         _temp_file_path: Path to temporary file for intermediate secret storage.
+
     """
 
     def __init__(self, select_context: bool, certificate: str | None = None) -> None:
@@ -74,6 +76,7 @@ class Kubeseal:
             select_context: If True, prompt user to select a Kubernetes context.
             certificate: Path to certificate file for detached mode. If provided,
                         operates without connecting to a cluster.
+
         """
         self.detached_mode: bool = False
         self.binary: str = "kubeseal"
@@ -120,6 +123,7 @@ class Kubeseal:
 
         Returns:
             The Kubeseal instance.
+
         """
         return self
 
@@ -130,6 +134,7 @@ class Kubeseal:
             exc_type: Exception type if an exception was raised.
             exc_val: Exception value if an exception was raised.
             exc_tb: Exception traceback if an exception was raised.
+
         """
         self._cleanup_temp_file()
 
@@ -150,6 +155,7 @@ class Kubeseal:
 
         Returns:
             List of command arguments ready for subprocess execution.
+
         """
         cmd: list[str] = [self.binary, _FORMAT_YAML]
 
@@ -175,6 +181,7 @@ class Kubeseal:
 
         Returns:
             List of paths to SealedSecret YAML files.
+
         """
         secrets: list[Path] = []
         for path in Path(src).rglob("*.yaml"):
@@ -192,6 +199,7 @@ class Kubeseal:
 
         Returns:
             Dictionary with 'namespace', 'type', and 'name' keys.
+
         """
         if self.detached_mode:
             namespace = questionary.text(
@@ -225,19 +233,71 @@ class Kubeseal:
 
         return {"namespace": namespace, "type": secret_type, "name": secret_name}
 
-    def create_generic_secret(self, secret_params: dict[str, str]) -> None:
-        """Generate a temporary generic secret YAML file from user-provided entries.
+    def _prompt_literal_entry(self) -> str:
+        """Prompt for a single literal key=value entry.
 
-        Prompts user for key=value pairs (literals) or filenames. Each entry
-        is processed and passed to kubectl to create a secret.
+        Returns:
+            The kubectl argument for the literal entry.
 
-        Args:
-            secret_params: Dictionary containing 'name' and 'namespace' keys.
+        """
+        entry = questionary.text(
+            "Enter key=value",
+            validate=lambda x: True if "=" in x else "Must be in key=value format",
+            style=PROMPT_STYLE,
+            qmark=QMARK,
+        ).unsafe_ask()
+        console.success(f"Added literal: {console.highlight(entry.split('=')[0])}")
+        return f"--from-literal={entry}"
+
+    def _prompt_bulk_literals(self) -> list[str]:
+        """Prompt for bulk literal entries (one per line).
+
+        Returns:
+            List of kubectl arguments for literal entries.
+
+        """
+        bulk_input = questionary.text(
+            "Enter key=value pairs (one per line, Esc+Enter to finish)",
+            multiline=True,
+            style=PROMPT_STYLE,
+            qmark=QMARK,
+        ).unsafe_ask()
+
+        entries = [
+            f"--from-literal={line.strip()}"
+            for line in bulk_input.splitlines()
+            if line.strip() and "=" in line
+        ]
+
+        if entries:
+            console.success(f"Added {console.highlight(str(len(entries)))} literal(s)")
+        return entries
+
+    def _prompt_file_entry(self) -> str:
+        """Prompt for a file entry.
+
+        Returns:
+            The kubectl argument for the file entry.
+
+        """
+        entry = questionary.path(
+            "Select file",
+            style=PROMPT_STYLE,
+            qmark=QMARK,
+        ).unsafe_ask()
+        console.success(f"Added file: {console.highlight(entry)}")
+        return f"--from-file={entry}"
+
+    def _collect_secret_entries(self) -> list[str]:
+        """Interactively collect secret entries from user.
+
+        Returns:
+            List of kubectl arguments for all entries.
+
         """
         entries: list[str] = []
 
         while True:
-            # Show current entries if any
             if entries:
                 console.info(f"Current entries: {console.highlight(str(len(entries)))}")
 
@@ -256,39 +316,26 @@ class Kubeseal:
 
             if entry_type == "done":
                 break
-
             if entry_type == "literal":
-                entry = questionary.text(
-                    "Enter key=value",
-                    validate=lambda x: True if "=" in x else "Must be in key=value format",
-                    style=PROMPT_STYLE,
-                    qmark=QMARK,
-                ).unsafe_ask()
-                entries.append(f"--from-literal={entry}")
-                console.success(f"Added literal: {console.highlight(entry.split('=')[0])}")
+                entries.append(self._prompt_literal_entry())
             elif entry_type == "bulk":
-                bulk_input = questionary.text(
-                    "Enter key=value pairs (one per line, Esc+Enter to finish)",
-                    multiline=True,
-                    style=PROMPT_STYLE,
-                    qmark=QMARK,
-                ).unsafe_ask()
-                added_count = 0
-                for line in bulk_input.splitlines():
-                    line = line.strip()
-                    if line and "=" in line:
-                        entries.append(f"--from-literal={line}")
-                        added_count += 1
-                if added_count:
-                    console.success(f"Added {console.highlight(str(added_count))} literal(s)")
+                entries.extend(self._prompt_bulk_literals())
             else:
-                entry = questionary.path(
-                    "Select file",
-                    style=PROMPT_STYLE,
-                    qmark=QMARK,
-                ).unsafe_ask()
-                entries.append(f"--from-file={entry}")
-                console.success(f"Added file: {console.highlight(entry)}")
+                entries.append(self._prompt_file_entry())
+
+        return entries
+
+    def create_generic_secret(self, secret_params: dict[str, str]) -> None:
+        """Generate a temporary generic secret YAML file from user-provided entries.
+
+        Prompts user for key=value pairs (literals) or filenames. Each entry
+        is processed and passed to kubectl to create a secret.
+
+        Args:
+            secret_params: Dictionary containing 'name' and 'namespace' keys.
+
+        """
+        entries = self._collect_secret_entries()
 
         ic(entries)
         console.step("Generating temporary generic secret yaml file")
@@ -319,6 +366,7 @@ class Kubeseal:
 
         Args:
             secret_params: Dictionary containing 'name' and 'namespace' keys.
+
         """
         console.step("Generating temporary TLS secret yaml file")
         cmd: list[str] = [
@@ -349,6 +397,7 @@ class Kubeseal:
 
         Args:
             secret_params: Dictionary containing 'name' and 'namespace' keys.
+
         """
         console.step("Generating temporary docker-registry secret yaml file")
 
@@ -395,6 +444,7 @@ class Kubeseal:
 
         Args:
             secret_params: Dictionary containing 'name', 'namespace', and 'type' keys.
+
         """
         console.step("Sealing secret")
 
@@ -432,6 +482,7 @@ class Kubeseal:
         Raises:
             SecretParsingError: If the file does not exist, contains multiple
                 documents, or contains malformed/invalid YAML.
+
         """
         try:
             with open(secret_name) as stream:
@@ -452,6 +503,7 @@ class Kubeseal:
 
         Args:
             secret_name: Path to the existing sealed secret file to update.
+
         """
         console.action(f"Updating {console.highlight(secret_name)}")
         cmd = self._build_kubeseal_cmd(extra_args=["--merge-into", secret_name])
@@ -471,6 +523,7 @@ class Kubeseal:
 
         Args:
             filename: Path to the sealed secret YAML file.
+
         """
         secret = self.parse_existing_secret(filename)
         if secret is None:
@@ -509,6 +562,7 @@ class Kubeseal:
 
         Raises:
             click.ClickException: If called in detached mode.
+
         """
         if self.cluster is None:
             raise click.ClickException("Fetching certificate is not available in detached mode")
@@ -536,6 +590,7 @@ class Kubeseal:
 
         Args:
             src: Path to the directory containing SealedSecret files.
+
         """
         secrets = self._find_sealed_secrets(src)
         if not secrets:
