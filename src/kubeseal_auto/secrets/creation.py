@@ -18,6 +18,46 @@ from kubeseal_auto.secrets.prompts import collect_secret_entries, prompt_docker_
 _DRY_RUN_CLIENT = "--dry-run=client"
 
 
+def _run_kubectl_write_output(
+    cmd: list[str],
+    output_path: Path,
+    secret_type: str,
+    *,
+    input_data: bytes | None = None,
+) -> None:
+    """Run a kubectl command and write its stdout to a file.
+
+    Args:
+        cmd: The kubectl command to execute.
+        output_path: Path where the command output will be written.
+        secret_type: Type of secret being created (for error messages).
+        input_data: Optional bytes to pass to stdin.
+
+    Raises:
+        click.ClickException: If kubectl is not found or the command fails.
+
+    """
+    try:
+        with output_path.open("w") as f:
+            subprocess.run(
+                cmd,
+                input=input_data,
+                stdout=f,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
+    except FileNotFoundError as err:
+        raise click.ClickException(
+            "kubectl not found; please install kubectl and ensure it's on PATH"
+        ) from err
+    except subprocess.CalledProcessError as err:
+        stderr_msg = err.stderr.decode().strip() if err.stderr else ""
+        error_details = f" - {stderr_msg}" if stderr_msg else ""
+        raise click.ClickException(
+            f"Failed to create {secret_type} secret (exit code {err.returncode}){error_details}"
+        ) from err
+
+
 def create_generic_secret(secret_params: SecretParams, output_path: Path) -> None:
     """Generate a temporary generic secret YAML file from user-provided entries.
 
@@ -50,13 +90,7 @@ def create_generic_secret(secret_params: SecretParams, output_path: Path) -> Non
 
     ic(cmd)
 
-    try:
-        with open(output_path, "w") as f:
-            subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, check=True)
-    except subprocess.CalledProcessError as err:
-        stderr_msg = err.stderr.decode().strip() if err.stderr else ""
-        error_details = f" - {stderr_msg}" if stderr_msg else ""
-        raise click.ClickException(f"Failed to create generic secret (exit code {err.returncode}){error_details}") from err
+    _run_kubectl_write_output(cmd, output_path, "generic")
 
 
 def create_tls_secret(secret_params: SecretParams, output_path: Path) -> None:
@@ -103,13 +137,7 @@ def create_tls_secret(secret_params: SecretParams, output_path: Path) -> None:
     ]
     ic(cmd)
 
-    try:
-        with open(output_path, "w") as f:
-            subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, check=True)
-    except subprocess.CalledProcessError as err:
-        stderr_msg = err.stderr.decode().strip() if err.stderr else ""
-        error_details = f" - {stderr_msg}" if stderr_msg else ""
-        raise click.ClickException(f"Failed to create TLS secret (exit code {err.returncode}){error_details}") from err
+    _run_kubectl_write_output(cmd, output_path, "TLS")
 
 
 def create_regcred_secret(secret_params: SecretParams, output_path: Path) -> None:
@@ -148,16 +176,6 @@ def create_regcred_secret(secret_params: SecretParams, output_path: Path) -> Non
     ]
     # Don't log cmd even though password is now via stdin (username/server are still sensitive)
 
-    try:
-        with output_path.open("w") as f:
-            subprocess.run(
-                cmd,
-                input=docker_password.encode(),
-                stdout=f,
-                stderr=subprocess.PIPE,
-                check=True,
-            )
-    except subprocess.CalledProcessError as err:
-        stderr_msg = err.stderr.decode().strip() if err.stderr else ""
-        error_details = f" - {stderr_msg}" if stderr_msg else ""
-        raise click.ClickException(f"Failed to create docker-registry secret (exit code {err.returncode}){error_details}") from err
+    _run_kubectl_write_output(
+        cmd, output_path, "docker-registry", input_data=docker_password.encode()
+    )
