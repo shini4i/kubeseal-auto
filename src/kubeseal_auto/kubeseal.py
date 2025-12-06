@@ -31,6 +31,7 @@ _DNS_SUBDOMAIN_PATTERN = r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[
 _DRY_RUN_CLIENT = "--dry-run=client"
 _FORMAT_YAML = "--format=yaml"
 
+
 def _validate_k8s_name(name: str) -> bool | str:
     """Validate a Kubernetes resource name (DNS subdomain).
 
@@ -97,22 +98,25 @@ class Kubeseal:
             self.controller_namespace = self.cluster.controller_namespace
             self.current_context_name = self.cluster.context
             self.namespaces_list = self.cluster.get_all_namespaces()
-            version = self.cluster.controller_version
 
-            if version:
-                try:
+            try:
+                version = self.cluster.controller_version
+                if version:
                     self.cluster.ensure_kubeseal_version(version)
                     self.binary = self.cluster.get_kubeseal_binary_path(version)
-                except BinaryNotFoundError:
+                else:
+                    console.warning("Controller version label not found")
                     self._fallback_to_system_binary()
-            else:
-                console.warning("Controller version label not found")
+            except (BinaryNotFoundError, ValueError) as exc:
+                console.warning(
+                    f"Failed to resolve controller version ({exc}); falling back to system kubeseal binary",
+                )
                 self._fallback_to_system_binary()
 
         # Create temp file with delete=False for Windows compatibility
         # Close immediately to avoid file locking issues when reopening
         temp_file = NamedTemporaryFile(delete=False)
-        self._temp_file_path: str = temp_file.name
+        self._temp_file_path: Path = Path(temp_file.name)
         temp_file.close()
 
     def __enter__(self) -> "Kubeseal":
@@ -139,17 +143,13 @@ class Kubeseal:
         """Return a detailed string representation for debugging."""
         if self.detached_mode:
             return f"Kubeseal(detached_mode=True, certificate={self.certificate!r})"
-        return (
-            f"Kubeseal(context={self.current_context_name!r}, "
-            f"controller={self.controller_name!r})"
-        )
+        return f"Kubeseal(context={self.current_context_name!r}, controller={self.controller_name!r})"
 
     def _cleanup_temp_file(self) -> None:
         """Remove the temporary file if it exists."""
         if hasattr(self, "_temp_file_path"):
-            temp_path = Path(self._temp_file_path)
             with contextlib.suppress(OSError):
-                temp_path.unlink(missing_ok=True)
+                self._temp_file_path.unlink(missing_ok=True)
 
     def _fallback_to_system_binary(self) -> None:
         """Fall back to system-installed kubeseal binary.
@@ -185,11 +185,13 @@ class Kubeseal:
         if self.detached_mode:
             cmd.append(f"--cert={self.certificate}")
         else:
-            cmd.extend([
-                f"--context={self.current_context_name}",
-                f"--controller-namespace={self.controller_namespace}",
-                f"--controller-name={self.controller_name}",
-            ])
+            cmd.extend(
+                [
+                    f"--context={self.current_context_name}",
+                    f"--controller-namespace={self.controller_namespace}",
+                    f"--controller-name={self.controller_name}",
+                ]
+            )
 
         if extra_args:
             cmd.extend(extra_args)
@@ -290,11 +292,7 @@ class Kubeseal:
             qmark=QMARK,
         ).unsafe_ask()
 
-        entries = [
-            f"--from-literal={line.strip()}"
-            for line in bulk_input.splitlines()
-            if line.strip() and "=" in line
-        ]
+        entries = [f"--from-literal={line.strip()}" for line in bulk_input.splitlines() if line.strip() and "=" in line]
 
         if entries:
             console.success(f"Added {console.highlight(str(len(entries)))} literal(s)")
@@ -646,7 +644,8 @@ class Kubeseal:
                     # Restore from backup on failure
                     if backup_path.exists():
                         backup_path.replace(secret)
-                    output_tmp.unlink(missing_ok=True)
+                    with contextlib.suppress(OSError):
+                        output_tmp.unlink(missing_ok=True)
                     raise
 
                 self.append_argo_annotation(str(secret))
