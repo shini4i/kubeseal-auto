@@ -304,12 +304,19 @@ class Kubeseal:
         Returns:
             The kubectl argument for the file entry.
 
+        Raises:
+            click.ClickException: If the selected file does not exist.
+
         """
         entry = questionary.path(
             "Select file",
             style=PROMPT_STYLE,
             qmark=QMARK,
         ).unsafe_ask()
+
+        if not Path(entry).exists():
+            raise click.ClickException(f"File not found: {entry}")
+
         console.success(f"Added file: {console.highlight(entry)}")
         return f"--from-file={entry}"
 
@@ -392,7 +399,24 @@ class Kubeseal:
         Args:
             secret_params: SecretParams containing name and namespace.
 
+        Raises:
+            click.ClickException: If tls.key or tls.crt files do not exist.
+
         """
+        key_file = Path("tls.key")
+        cert_file = Path("tls.crt")
+
+        missing_files = []
+        if not key_file.exists():
+            missing_files.append("tls.key")
+        if not cert_file.exists():
+            missing_files.append("tls.crt")
+
+        if missing_files:
+            raise click.ClickException(
+                f"Required TLS file(s) not found in current directory: {', '.join(missing_files)}"
+            )
+
         console.step("Generating temporary TLS secret yaml file")
         cmd: list[str] = [
             "kubectl",
@@ -403,9 +427,9 @@ class Kubeseal:
             "--namespace",
             secret_params.namespace,
             "--key",
-            "tls.key",
+            str(key_file),
             "--cert",
-            "tls.crt",
+            str(cert_file),
             _DRY_RUN_CLIENT,
             "-o",
             "yaml",
@@ -459,8 +483,11 @@ class Kubeseal:
         ]
         # Don't log cmd as it contains sensitive docker credentials
 
-        with open(self._temp_file_path, "w") as f:
-            subprocess.run(cmd, stdout=f, check=True)
+        try:
+            with open(self._temp_file_path, "w") as f:
+                subprocess.run(cmd, stdout=f, check=True)
+        except subprocess.CalledProcessError as err:
+            raise click.ClickException(f"Failed to create docker-registry secret (exit code {err.returncode})") from err
 
     def seal(self, secret_params: SecretParams) -> None:
         """Seal a secret using kubeseal.
@@ -478,10 +505,16 @@ class Kubeseal:
 
         output_file = f"{secret_params.name}.yaml"
 
-        with console.spinner("Sealing secret with kubeseal..."):
-            with open(self._temp_file_path) as stdin_f, open(output_file, "w") as stdout_f:
-                subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, check=True)
-            self.append_argo_annotation(filename=output_file)
+        try:
+            with console.spinner("Sealing secret with kubeseal..."):
+                with open(self._temp_file_path) as stdin_f, open(output_file, "w") as stdout_f:
+                    subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, check=True)
+                self.append_argo_annotation(filename=output_file)
+        except subprocess.CalledProcessError as err:
+            # Clean up partial output file on failure
+            with contextlib.suppress(OSError):
+                Path(output_file).unlink(missing_ok=True)
+            raise click.ClickException(f"Failed to seal secret with kubeseal (exit code {err.returncode})") from err
 
         console.newline()
         console.summary_panel(
@@ -542,8 +575,11 @@ class Kubeseal:
         cmd = self._build_kubeseal_cmd(extra_args=["--merge-into", secret_name])
         ic(cmd)
 
-        with open(self._temp_file_path) as stdin_f:
-            subprocess.run(cmd, stdin=stdin_f, check=True)
+        try:
+            with open(self._temp_file_path) as stdin_f:
+                subprocess.run(cmd, stdin=stdin_f, check=True)
+        except subprocess.CalledProcessError as err:
+            raise click.ClickException(f"Failed to merge secret with kubeseal (exit code {err.returncode})") from err
 
         self.append_argo_annotation(filename=secret_name)
         console.success("Done")
@@ -613,8 +649,16 @@ class Kubeseal:
         ic(cmd)
 
         output_file = f"{self.current_context_name}-kubeseal-cert.crt"
-        with open(output_file, "w") as f:
-            subprocess.run(cmd, stdout=f, check=True)
+        try:
+            with open(output_file, "w") as f:
+                subprocess.run(cmd, stdout=f, check=True)
+        except subprocess.CalledProcessError as err:
+            # Clean up partial output file on failure
+            with contextlib.suppress(OSError):
+                Path(output_file).unlink(missing_ok=True)
+            raise click.ClickException(
+                f"Failed to fetch certificate from kubeseal (exit code {err.returncode})"
+            ) from err
 
         console.success(f"Saved to {console.highlight(output_file)}")
 
@@ -669,5 +713,13 @@ class Kubeseal:
         ic(cmd)
 
         output_file = f"{self.current_context_name}-secret-backup.yaml"
-        with open(output_file, "w") as f:
-            subprocess.run(cmd, stdout=f, check=True)
+        try:
+            with open(output_file, "w") as f:
+                subprocess.run(cmd, stdout=f, check=True)
+        except subprocess.CalledProcessError as err:
+            # Clean up partial output file on failure
+            with contextlib.suppress(OSError):
+                Path(output_file).unlink(missing_ok=True)
+            raise click.ClickException(f"Failed to backup secret (exit code {err.returncode})") from err
+
+        console.success(f"Saved to {console.highlight(output_file)}")

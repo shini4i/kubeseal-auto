@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, mock_open, patch
 
+import click
 import pytest
 
 from kubeseal_auto.exceptions import SecretParsingError
@@ -98,6 +99,7 @@ class TestKubesealSecretCreation:
             patch("questionary.select") as mock_select,
             patch("questionary.path") as mock_path,
             patch("builtins.open", mock_open()),
+            patch("kubeseal_auto.kubeseal.Path.exists", return_value=True),
         ):
             # Simulate: file -> config.json, done
             mock_select.return_value.unsafe_ask.side_effect = ["file", "done"]
@@ -139,6 +141,7 @@ class TestKubesealSecretCreation:
             patch("questionary.text") as mock_text,
             patch("questionary.path") as mock_path,
             patch("builtins.open", mock_open()),
+            patch("kubeseal_auto.kubeseal.Path.exists", return_value=True),
         ):
             # Simulate: literal, file, bulk, done
             mock_select.return_value.unsafe_ask.side_effect = ["literal", "file", "bulk", "done"]
@@ -158,7 +161,10 @@ class TestKubesealSecretCreation:
         kubeseal = Kubeseal(select_context=False)
         secret_params = SecretParams(name="test-tls-secret", namespace="default", secret_type=SecretType.TLS)
 
-        with patch("builtins.open", mock_open()):
+        with (
+            patch("builtins.open", mock_open()),
+            patch("kubeseal_auto.kubeseal.Path.exists", return_value=True),
+        ):
             kubeseal.create_tls_secret(secret_params)
 
             mock_subprocess.assert_called_once()
@@ -217,6 +223,32 @@ class TestKubesealSecretCreation:
             assert f"--docker-username={docker_username}" in cmd
             assert f"--docker-password={docker_password}" in cmd
             assert "--dry-run=client" in cmd
+
+    def test_create_tls_secret_missing_files(self, kubeseal_mocks):  # noqa: ARG002
+        """Test creating a TLS secret with missing files raises ClickException."""
+        kubeseal = Kubeseal(select_context=False)
+        secret_params = SecretParams(name="test-tls-secret", namespace="default", secret_type=SecretType.TLS)
+
+        with pytest.raises(click.ClickException) as exc_info:
+            kubeseal.create_tls_secret(secret_params)
+
+        assert "Required TLS file(s) not found" in str(exc_info.value)
+
+    def test_create_generic_secret_file_not_found(self, kubeseal_mocks):  # noqa: ARG002
+        """Test creating a generic secret with non-existent file raises ClickException."""
+        kubeseal = Kubeseal(select_context=False)
+        secret_params = SecretParams(name="test-secret", namespace="default", secret_type=SecretType.GENERIC)
+
+        with (
+            patch("questionary.select") as mock_select,
+            patch("questionary.path") as mock_path,
+            pytest.raises(click.ClickException) as exc_info,
+        ):
+            mock_select.return_value.unsafe_ask.side_effect = ["file", "done"]
+            mock_path.return_value.unsafe_ask.return_value = "nonexistent.json"
+            kubeseal.create_generic_secret(secret_params)
+
+        assert "File not found: nonexistent.json" in str(exc_info.value)
 
 
 class TestKubesealSealing:
