@@ -34,11 +34,19 @@ def _run_kubectl_write_output(
         input_data: Optional bytes to pass to stdin.
 
     Raises:
-        click.ClickException: If kubectl is not found or the command fails.
+        click.ClickException: If output path is invalid, kubectl is not found,
+            or the command fails.
 
     """
     try:
-        with output_path.open("w") as f:
+        f = output_path.open("w")
+    except OSError as err:
+        raise click.ClickException(
+            f"Cannot write to output path '{output_path}': {err.strerror}"
+        ) from err
+
+    with f:
+        try:
             subprocess.run(
                 cmd,
                 input=input_data,
@@ -46,16 +54,16 @@ def _run_kubectl_write_output(
                 stderr=subprocess.PIPE,
                 check=True,
             )
-    except FileNotFoundError as err:
-        raise click.ClickException(
-            "kubectl not found; please install kubectl and ensure it's on PATH"
-        ) from err
-    except subprocess.CalledProcessError as err:
-        stderr_msg = err.stderr.decode().strip() if err.stderr else ""
-        error_details = f" - {stderr_msg}" if stderr_msg else ""
-        raise click.ClickException(
-            f"Failed to create {secret_type} secret (exit code {err.returncode}){error_details}"
-        ) from err
+        except FileNotFoundError as err:
+            raise click.ClickException(
+                "kubectl not found; please install kubectl and ensure it's on PATH"
+            ) from err
+        except subprocess.CalledProcessError as err:
+            stderr_msg = err.stderr.decode().strip() if err.stderr else ""
+            error_details = f" - {stderr_msg}" if stderr_msg else ""
+            raise click.ClickException(
+                f"Failed to create {secret_type} secret (exit code {err.returncode}){error_details}"
+            ) from err
 
 
 def create_generic_secret(secret_params: SecretParams, output_path: Path) -> None:
