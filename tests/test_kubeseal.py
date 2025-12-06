@@ -243,11 +243,12 @@ class TestKubesealSecretCreation:
         with (
             patch("questionary.select") as mock_select,
             patch("questionary.path") as mock_path,
-            pytest.raises(click.ClickException) as exc_info,
         ):
             mock_select.return_value.unsafe_ask.side_effect = ["file", "done"]
             mock_path.return_value.unsafe_ask.return_value = "nonexistent.json"
-            kubeseal.create_generic_secret(secret_params)
+
+            with pytest.raises(click.ClickException) as exc_info:
+                kubeseal.create_generic_secret(secret_params)
 
         assert "File not found: nonexistent.json" in str(exc_info.value)
 

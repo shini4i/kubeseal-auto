@@ -50,8 +50,11 @@ def create_generic_secret(secret_params: SecretParams, output_path: Path) -> Non
 
     ic(cmd)
 
-    with open(output_path, "w") as f:
-        subprocess.run(cmd, stdout=f, check=True)
+    try:
+        with open(output_path, "w") as f:
+            subprocess.run(cmd, stdout=f, check=True)
+    except subprocess.CalledProcessError as err:
+        raise click.ClickException(f"Failed to create generic secret (exit code {err.returncode})") from err
 
 
 def create_tls_secret(secret_params: SecretParams, output_path: Path) -> None:
@@ -98,8 +101,11 @@ def create_tls_secret(secret_params: SecretParams, output_path: Path) -> None:
     ]
     ic(cmd)
 
-    with open(output_path, "w") as f:
-        subprocess.run(cmd, stdout=f, check=True)
+    try:
+        with open(output_path, "w") as f:
+            subprocess.run(cmd, stdout=f, check=True)
+    except subprocess.CalledProcessError as err:
+        raise click.ClickException(f"Failed to create TLS secret (exit code {err.returncode})") from err
 
 
 def create_regcred_secret(secret_params: SecretParams, output_path: Path) -> None:

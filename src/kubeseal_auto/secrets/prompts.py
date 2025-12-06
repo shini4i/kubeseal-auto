@@ -40,6 +40,7 @@ def validate_k8s_name(name: str) -> bool | str:
 
 def collect_secret_parameters(
     namespaces: list[str],
+    *,
     detached_mode: bool = False,
 ) -> SecretParams:
     """Interactively collect parameters for creating a new secret.
@@ -123,6 +124,10 @@ def _prompt_bulk_literals() -> list[str]:
     ).unsafe_ask()
 
     entries = [f"--from-literal={line.strip()}" for line in bulk_input.splitlines() if line.strip() and "=" in line]
+
+    skipped = sum(1 for line in bulk_input.splitlines() if line.strip() and "=" not in line)
+    if skipped:
+        console.warning(f"Skipped {skipped} line(s) missing '=' separator")
 
     if entries:
         console.success(f"Added {console.highlight(str(len(entries)))} literal(s)")

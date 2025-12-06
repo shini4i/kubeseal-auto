@@ -149,13 +149,13 @@ def reencrypt_secrets(src: str, kubeseal_cmd: list[str]) -> None:
                 # Atomic replace on success
                 output_tmp.replace(secret)
                 backup_path.unlink()
-            except subprocess.CalledProcessError:
+            except subprocess.CalledProcessError as err:
                 # Restore from backup on failure
                 if backup_path.exists():
                     backup_path.replace(secret)
                 with contextlib.suppress(OSError):
                     output_tmp.unlink(missing_ok=True)
-                raise
+                raise click.ClickException(f"Failed to re-encrypt {secret} (exit code {err.returncode})") from err
 
             append_argo_annotation(str(secret))
             progress.update(task, advance=1)

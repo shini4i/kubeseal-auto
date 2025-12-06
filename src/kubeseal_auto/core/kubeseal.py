@@ -53,7 +53,7 @@ class Kubeseal:
 
     """
 
-    def __init__(self, select_context: bool, certificate: str | None = None) -> None:
+    def __init__(self, *, select_context: bool, certificate: str | None = None) -> None:
         """Initialize Kubeseal with cluster connection or certificate.
 
         Args:
@@ -127,6 +127,10 @@ class Kubeseal:
         if self.detached_mode:
             return f"Kubeseal(detached_mode=True, certificate={self.certificate!r})"
         return f"Kubeseal(context={self.current_context_name!r}, controller={self.controller_name!r})"
+
+    def __del__(self) -> None:
+        """Ensure temp file cleanup if context manager wasn't used."""
+        self._cleanup_temp_file()
 
     def _cleanup_temp_file(self) -> None:
         """Remove the temporary file if it exists."""
