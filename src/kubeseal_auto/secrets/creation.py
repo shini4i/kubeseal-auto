@@ -111,7 +111,8 @@ def create_tls_secret(secret_params: SecretParams, output_path: Path) -> None:
 def create_regcred_secret(secret_params: SecretParams, output_path: Path) -> None:
     """Generate a temporary docker-registry secret YAML file.
 
-    Prompts user for Docker registry credentials.
+    Prompts user for Docker registry credentials. The password is passed via
+    stdin to avoid exposing it in process listings.
 
     Args:
         secret_params: SecretParams containing name and namespace.
@@ -125,6 +126,7 @@ def create_regcred_secret(secret_params: SecretParams, output_path: Path) -> Non
 
     docker_server, docker_username, docker_password = prompt_docker_credentials()
 
+    # Password is passed via stdin to avoid exposure in process listings
     cmd: list[str] = [
         "kubectl",
         "create",
@@ -135,15 +137,23 @@ def create_regcred_secret(secret_params: SecretParams, output_path: Path) -> Non
         secret_params.namespace,
         f"--docker-server={docker_server}",
         f"--docker-username={docker_username}",
-        f"--docker-password={docker_password}",
+        "--docker-password-stdin",
         _DRY_RUN_CLIENT,
         "-o",
         "yaml",
     ]
-    # Don't log cmd as it contains sensitive docker credentials
+    # Don't log cmd even though password is now via stdin (username/server are still sensitive)
 
     try:
-        with open(output_path, "w") as f:
-            subprocess.run(cmd, stdout=f, check=True)
+        with output_path.open("w") as f:
+            subprocess.run(
+                cmd,
+                input=docker_password.encode(),
+                stdout=f,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
     except subprocess.CalledProcessError as err:
-        raise click.ClickException(f"Failed to create docker-registry secret (exit code {err.returncode})") from err
+        stderr_msg = err.stderr.decode().strip() if err.stderr else ""
+        error_details = f" - {stderr_msg}" if stderr_msg else ""
+        raise click.ClickException(f"Failed to create docker-registry secret (exit code {err.returncode}){error_details}") from err

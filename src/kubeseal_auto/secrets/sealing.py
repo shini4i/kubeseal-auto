@@ -66,13 +66,15 @@ def seal_secret(
     try:
         with console.spinner("Sealing secret with kubeseal..."):
             with open(temp_file_path) as stdin_f, open(output_file, "w") as stdout_f:
-                subprocess.run(kubeseal_cmd, stdin=stdin_f, stdout=stdout_f, check=True)
+                subprocess.run(kubeseal_cmd, stdin=stdin_f, stdout=stdout_f, stderr=subprocess.PIPE, check=True)
             append_argo_annotation(filename=output_file)
     except subprocess.CalledProcessError as err:
         # Clean up partial output file on failure
         with contextlib.suppress(OSError):
             Path(output_file).unlink(missing_ok=True)
-        raise click.ClickException(f"Failed to seal secret with kubeseal (exit code {err.returncode})") from err
+        stderr_msg = err.stderr.decode().strip() if err.stderr else ""
+        error_details = f": {stderr_msg}" if stderr_msg else ""
+        raise click.ClickException(f"Failed to seal secret with kubeseal (exit code {err.returncode}){error_details}") from err
 
     console.newline()
     console.summary_panel(
@@ -109,9 +111,11 @@ def merge_secret(
 
     try:
         with open(temp_file_path) as stdin_f:
-            subprocess.run(cmd, stdin=stdin_f, check=True)
+            subprocess.run(cmd, stdin=stdin_f, stderr=subprocess.PIPE, check=True)
     except subprocess.CalledProcessError as err:
-        raise click.ClickException(f"Failed to merge secret with kubeseal (exit code {err.returncode})") from err
+        stderr_msg = err.stderr.decode().strip() if err.stderr else ""
+        error_details = f": {stderr_msg}" if stderr_msg else ""
+        raise click.ClickException(f"Failed to merge secret with kubeseal (exit code {err.returncode}){error_details}") from err
 
     append_argo_annotation(filename=secret_name)
     console.success("Done")
@@ -145,7 +149,7 @@ def reencrypt_secrets(src: str, kubeseal_cmd: list[str]) -> None:
 
             try:
                 with secret.open() as stdin_f, output_tmp.open("w") as stdout_f:
-                    subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, check=True)
+                    subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, stderr=subprocess.PIPE, check=True)
                 # Atomic replace on success
                 output_tmp.replace(secret)
                 backup_path.unlink()
@@ -155,7 +159,9 @@ def reencrypt_secrets(src: str, kubeseal_cmd: list[str]) -> None:
                     backup_path.replace(secret)
                 with contextlib.suppress(OSError):
                     output_tmp.unlink(missing_ok=True)
-                raise click.ClickException(f"Failed to re-encrypt {secret} (exit code {err.returncode})") from err
+                stderr_msg = err.stderr.decode().strip() if err.stderr else ""
+                error_details = f": {stderr_msg}" if stderr_msg else ""
+                raise click.ClickException(f"Failed to re-encrypt {secret} (exit code {err.returncode}){error_details}") from err
 
             append_argo_annotation(str(secret))
             progress.update(task, advance=1)
@@ -197,12 +203,14 @@ def fetch_certificate(
     output_file = f"{context_name}-kubeseal-cert.crt"
     try:
         with open(output_file, "w") as f:
-            subprocess.run(cmd, stdout=f, check=True)
+            subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, check=True)
     except subprocess.CalledProcessError as err:
         # Clean up partial output file on failure
         with contextlib.suppress(OSError):
             Path(output_file).unlink(missing_ok=True)
-        raise click.ClickException(f"Failed to fetch certificate from kubeseal (exit code {err.returncode})") from err
+        stderr_msg = err.stderr.decode().strip() if err.stderr else ""
+        error_details = f": {stderr_msg}" if stderr_msg else ""
+        raise click.ClickException(f"Failed to fetch certificate from kubeseal (exit code {err.returncode}){error_details}") from err
 
     console.success(f"Saved to {console.highlight(output_file)}")
 
@@ -238,11 +246,13 @@ def backup_controller_secret(
     output_file = f"{context_name}-secret-backup.yaml"
     try:
         with open(output_file, "w") as f:
-            subprocess.run(cmd, stdout=f, check=True)
+            subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, check=True)
     except subprocess.CalledProcessError as err:
         # Clean up partial output file on failure
         with contextlib.suppress(OSError):
             Path(output_file).unlink(missing_ok=True)
-        raise click.ClickException(f"Failed to backup secret (exit code {err.returncode})") from err
+        stderr_msg = err.stderr.decode().strip() if err.stderr else ""
+        error_details = f": {stderr_msg}" if stderr_msg else ""
+        raise click.ClickException(f"Failed to backup secret (exit code {err.returncode}){error_details}") from err
 
     console.success(f"Saved to {console.highlight(output_file)}")

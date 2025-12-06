@@ -195,29 +195,72 @@ def collect_secret_entries() -> list[str]:
     return entries
 
 
+def _validate_docker_server(value: str) -> bool | str:
+    """Validate Docker server address.
+
+    Args:
+        value: The server address to validate.
+
+    Returns:
+        True if valid, or an error message string if invalid.
+
+    """
+    if not value or not value.strip():
+        return "Docker server cannot be empty"
+    # Basic validation: should look like a hostname or URL
+    stripped = value.strip()
+    # Allow common formats: hostname, hostname:port, or full URL
+    if " " in stripped:
+        return "Docker server cannot contain spaces"
+    return True
+
+
+def _validate_non_empty(field_name: str) -> callable:
+    """Create a validator that checks for non-empty values.
+
+    Args:
+        field_name: Name of the field for error messages.
+
+    Returns:
+        A validation function.
+
+    """
+    def validator(value: str) -> bool | str:
+        if not value or not value.strip():
+            return f"{field_name} cannot be empty"
+        return True
+    return validator
+
+
 def prompt_docker_credentials() -> tuple[str, str, str]:
-    """Prompt for Docker registry credentials.
+    """Prompt for Docker registry credentials with validation.
+
+    Each field is validated to ensure it is non-empty. The server
+    field is additionally validated to be a plausible hostname format.
 
     Returns:
         Tuple of (server, username, password).
 
     """
     docker_server = questionary.text(
-        "Provide docker-server",
+        "Provide docker-server (e.g., docker.io, ghcr.io)",
+        validate=_validate_docker_server,
         style=PROMPT_STYLE,
         qmark=QMARK,
     ).unsafe_ask()
 
     docker_username = questionary.text(
         "Provide docker-username",
+        validate=_validate_non_empty("Docker username"),
         style=PROMPT_STYLE,
         qmark=QMARK,
     ).unsafe_ask()
 
     docker_password = questionary.password(
         "Provide docker-password",
+        validate=_validate_non_empty("Docker password"),
         style=PROMPT_STYLE,
         qmark=QMARK,
     ).unsafe_ask()
 
-    return docker_server, docker_username, docker_password
+    return docker_server.strip(), docker_username.strip(), docker_password

@@ -222,7 +222,12 @@ class TestKubesealSecretCreation:
             assert "default" in cmd
             assert f"--docker-server={docker_server}" in cmd
             assert f"--docker-username={docker_username}" in cmd
-            assert f"--docker-password={docker_password}" in cmd
+            # Password is passed via stdin (--docker-password-stdin), not as argument
+            assert "--docker-password-stdin" in cmd
+            assert "--docker-password=" not in " ".join(cmd)
+            # Verify password was passed via stdin
+            call_kwargs = mock_subprocess.call_args[1]
+            assert call_kwargs.get("input") == docker_password.encode()
             assert "--dry-run=client" in cmd
 
     def test_create_tls_secret_missing_files(self, kubeseal_mocks):  # noqa: ARG002
