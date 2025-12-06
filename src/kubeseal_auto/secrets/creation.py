@@ -17,6 +17,24 @@ from kubeseal_auto.secrets.prompts import collect_secret_entries, prompt_docker_
 # CLI flag constants for kubectl commands
 _DRY_RUN_CLIENT = "--dry-run=client"
 
+# Error message constants
+_ERR_KUBECTL_NOT_FOUND = "kubectl not found; please install kubectl and ensure it's on PATH"
+_ERR_OUTPUT_PATH = "Cannot write to output path '{path}': {reason}"
+_ERR_SECRET_CREATION = "Failed to create {secret_type} secret (exit code {code}){details}"
+
+
+def _kubectl_error(msg: str) -> click.ClickException:
+    """Create a ClickException for kubectl-related errors.
+
+    Args:
+        msg: The error message.
+
+    Returns:
+        A ClickException with the formatted message.
+
+    """
+    return click.ClickException(msg)
+
 
 def _run_kubectl_write_output(
     cmd: list[str],
@@ -41,8 +59,8 @@ def _run_kubectl_write_output(
     try:
         f = output_path.open("w")
     except OSError as err:
-        raise click.ClickException(
-            f"Cannot write to output path '{output_path}': {err.strerror}"
+        raise _kubectl_error(
+            _ERR_OUTPUT_PATH.format(path=output_path, reason=err.strerror)
         ) from err
 
     with f:
@@ -55,14 +73,14 @@ def _run_kubectl_write_output(
                 check=True,
             )
         except FileNotFoundError as err:
-            raise click.ClickException(
-                "kubectl not found; please install kubectl and ensure it's on PATH"
-            ) from err
+            raise _kubectl_error(_ERR_KUBECTL_NOT_FOUND) from err
         except subprocess.CalledProcessError as err:
             stderr_msg = err.stderr.decode().strip() if err.stderr else ""
             error_details = f" - {stderr_msg}" if stderr_msg else ""
-            raise click.ClickException(
-                f"Failed to create {secret_type} secret (exit code {err.returncode}){error_details}"
+            raise _kubectl_error(
+                _ERR_SECRET_CREATION.format(
+                    secret_type=secret_type, code=err.returncode, details=error_details
+                )
             ) from err
 
 
