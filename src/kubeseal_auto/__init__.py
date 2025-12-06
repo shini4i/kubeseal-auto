@@ -16,7 +16,8 @@ Example usage:
 __version__ = "0.6.0"
 
 from kubeseal_auto.cli import cli
-from kubeseal_auto.cluster import Cluster
+from kubeseal_auto.core.cluster import Cluster
+from kubeseal_auto.core.kubeseal import Kubeseal
 from kubeseal_auto.exceptions import (
     BinaryNotFoundError,
     ClusterConnectionError,
@@ -25,7 +26,6 @@ from kubeseal_auto.exceptions import (
     SecretParsingError,
     UnsupportedPlatformError,
 )
-from kubeseal_auto.kubeseal import Kubeseal
 
 __all__ = [
     # Version

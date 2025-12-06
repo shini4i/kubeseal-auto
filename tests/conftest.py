@@ -25,7 +25,7 @@ def mock_kube_config():
 @pytest.fixture
 def mock_controller():
     """Mock SealedSecrets controller discovery."""
-    with patch("kubeseal_auto.cluster.Cluster._find_sealed_secrets_controller") as mock:
+    with patch("kubeseal_auto.core.cluster.Cluster._find_sealed_secrets_controller") as mock:
         mock.return_value = ControllerInfo(
             name="sealed-secrets-controller",
             namespace="kube-system",
@@ -37,7 +37,7 @@ def mock_controller():
 @pytest.fixture
 def mock_namespaces():
     """Mock namespace listing."""
-    with patch("kubeseal_auto.cluster.Cluster.get_all_namespaces") as mock:
+    with patch("kubeseal_auto.core.cluster.Cluster.get_all_namespaces") as mock:
         mock.return_value = ["default", "kube-system", "monitoring"]
         yield mock
 
@@ -69,7 +69,7 @@ def mock_subprocess():
 @pytest.fixture
 def mock_host_binary():
     """Mock Host class to skip binary download."""
-    with patch("kubeseal_auto.cluster.Host") as mock:
+    with patch("kubeseal_auto.core.cluster.Host") as mock:
         host_instance = MagicMock()
         mock.return_value = host_instance
         yield host_instance
@@ -78,7 +78,7 @@ def mock_host_binary():
 @pytest.fixture
 def mock_host_ensure_binary():
     """Mock Host.ensure_kubeseal_binary to skip download."""
-    with patch("kubeseal_auto.host.Host.ensure_kubeseal_binary") as mock:
+    with patch("kubeseal_auto.core.host.Host.ensure_kubeseal_binary") as mock:
         yield mock
 
 

@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from kubeseal_auto.core.host import Host
 from kubeseal_auto.exceptions import BinaryNotFoundError, UnsupportedPlatformError
-from kubeseal_auto.host import Host
 
 
 class TestHostPlatformDetection:
@@ -15,25 +15,25 @@ class TestHostPlatformDetection:
 
     def test_get_cpu_type_x86_64(self):
         """Test detection of x86_64 CPU."""
-        with patch("kubeseal_auto.host.platform.machine", return_value="x86_64"):
+        with patch("kubeseal_auto.core.host.platform.machine", return_value="x86_64"):
             result = Host._get_cpu_type()
             assert result == "amd64"
 
     def test_get_cpu_type_arm64(self):
         """Test detection of arm64 CPU."""
-        with patch("kubeseal_auto.host.platform.machine", return_value="arm64"):
+        with patch("kubeseal_auto.core.host.platform.machine", return_value="arm64"):
             result = Host._get_cpu_type()
             assert result == "arm64"
 
     def test_get_cpu_type_aarch64(self):
         """Test detection of aarch64 CPU (common Linux ARM variant)."""
-        with patch("kubeseal_auto.host.platform.machine", return_value="aarch64"):
+        with patch("kubeseal_auto.core.host.platform.machine", return_value="aarch64"):
             result = Host._get_cpu_type()
             assert result == "arm64"
 
     def test_get_cpu_type_unsupported(self):
         """Test error on unsupported CPU architecture."""
-        with patch("kubeseal_auto.host.platform.machine", return_value="i386"):
+        with patch("kubeseal_auto.core.host.platform.machine", return_value="i386"):
             with pytest.raises(UnsupportedPlatformError) as exc_info:
                 Host._get_cpu_type()
             assert "Unsupported CPU architecture" in str(exc_info.value)
@@ -41,19 +41,19 @@ class TestHostPlatformDetection:
 
     def test_get_system_type_linux(self):
         """Test detection of Linux system."""
-        with patch("kubeseal_auto.host.platform.system", return_value="Linux"):
+        with patch("kubeseal_auto.core.host.platform.system", return_value="Linux"):
             result = Host._get_system_type()
             assert result == "linux"
 
     def test_get_system_type_darwin(self):
         """Test detection of macOS (Darwin) system."""
-        with patch("kubeseal_auto.host.platform.system", return_value="Darwin"):
+        with patch("kubeseal_auto.core.host.platform.system", return_value="Darwin"):
             result = Host._get_system_type()
             assert result == "darwin"
 
     def test_get_system_type_unsupported(self):
         """Test error on unsupported operating system."""
-        with patch("kubeseal_auto.host.platform.system", return_value="Windows"):
+        with patch("kubeseal_auto.core.host.platform.system", return_value="Windows"):
             with pytest.raises(UnsupportedPlatformError) as exc_info:
                 Host._get_system_type()
             assert "Unsupported operating system" in str(exc_info.value)
@@ -66,8 +66,8 @@ class TestHostInit:
     def test_init_sets_correct_values(self):
         """Test that Host initializes with correct platform values."""
         with (
-            patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
-            patch("kubeseal_auto.host.platform.system", return_value="Linux"),
+            patch("kubeseal_auto.core.host.platform.machine", return_value="x86_64"),
+            patch("kubeseal_auto.core.host.platform.system", return_value="Linux"),
         ):
             host = Host()
 
@@ -89,8 +89,8 @@ class TestHostBinaryManagement:
     def test_ensure_kubeseal_binary_exists(self):
         """Test that no download is triggered when binary exists."""
         with (
-            patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
-            patch("kubeseal_auto.host.platform.system", return_value="Linux"),
+            patch("kubeseal_auto.core.host.platform.machine", return_value="x86_64"),
+            patch("kubeseal_auto.core.host.platform.system", return_value="Linux"),
             patch.object(Path, "exists", return_value=True),
         ):
             host = Host()
@@ -102,8 +102,8 @@ class TestHostBinaryManagement:
     def test_ensure_kubeseal_binary_downloads_when_missing(self):
         """Test that download is triggered when binary is missing."""
         with (
-            patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
-            patch("kubeseal_auto.host.platform.system", return_value="Linux"),
+            patch("kubeseal_auto.core.host.platform.machine", return_value="x86_64"),
+            patch("kubeseal_auto.core.host.platform.system", return_value="Linux"),
             patch.object(Path, "exists", return_value=False),
         ):
             host = Host()
@@ -119,8 +119,8 @@ class TestHostBinaryManagement:
         which normalize internally.
         """
         with (
-            patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
-            patch("kubeseal_auto.host.platform.system", return_value="Linux"),
+            patch("kubeseal_auto.core.host.platform.machine", return_value="x86_64"),
+            patch("kubeseal_auto.core.host.platform.system", return_value="Linux"),
             patch.object(Path, "exists", return_value=False),
         ):
             host = Host()
@@ -133,8 +133,8 @@ class TestHostBinaryManagement:
     def test_download_kubeseal_binary_success(self):
         """Test successful binary download."""
         with (
-            patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
-            patch("kubeseal_auto.host.platform.system", return_value="Linux"),
+            patch("kubeseal_auto.core.host.platform.machine", return_value="x86_64"),
+            patch("kubeseal_auto.core.host.platform.system", return_value="Linux"),
             patch.object(Path, "mkdir"),
             patch.object(Path, "unlink"),
         ):
@@ -147,9 +147,9 @@ class TestHostBinaryManagement:
             mock_response.__exit__ = MagicMock(return_value=False)
 
             with (
-                patch("kubeseal_auto.host.requests.get", return_value=mock_response),
+                patch("kubeseal_auto.core.host.requests.get", return_value=mock_response),
                 patch.object(Path, "open", MagicMock()),
-                patch("kubeseal_auto.host.tarfile.open") as mock_tarfile,
+                patch("kubeseal_auto.core.host.tarfile.open") as mock_tarfile,
             ):
                 mock_tar = MagicMock()
                 mock_member = MagicMock()
@@ -169,8 +169,8 @@ class TestHostBinaryManagement:
     def test_download_kubeseal_binary_version_not_found(self):
         """Test error when version is not available."""
         with (
-            patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
-            patch("kubeseal_auto.host.platform.system", return_value="Linux"),
+            patch("kubeseal_auto.core.host.platform.machine", return_value="x86_64"),
+            patch("kubeseal_auto.core.host.platform.system", return_value="Linux"),
             patch.object(Path, "mkdir"),
         ):
             host = Host()
@@ -181,7 +181,7 @@ class TestHostBinaryManagement:
             mock_response.__exit__ = MagicMock(return_value=False)
 
             with (
-                patch("kubeseal_auto.host.requests.get", return_value=mock_response),
+                patch("kubeseal_auto.core.host.requests.get", return_value=mock_response),
                 pytest.raises(BinaryNotFoundError) as exc_info,
             ):
                 host._download_kubeseal_binary("99.99.99")
@@ -191,8 +191,8 @@ class TestHostBinaryManagement:
     def test_download_creates_bin_directory(self):
         """Test that bin directory is created if it doesn't exist."""
         with (
-            patch("kubeseal_auto.host.platform.machine", return_value="x86_64"),
-            patch("kubeseal_auto.host.platform.system", return_value="Linux"),
+            patch("kubeseal_auto.core.host.platform.machine", return_value="x86_64"),
+            patch("kubeseal_auto.core.host.platform.system", return_value="Linux"),
         ):
             host = Host()
 
@@ -207,9 +207,9 @@ class TestHostBinaryManagement:
                 mock_response.__exit__ = MagicMock(return_value=False)
 
                 with (
-                    patch("kubeseal_auto.host.requests.get", return_value=mock_response),
+                    patch("kubeseal_auto.core.host.requests.get", return_value=mock_response),
                     patch.object(Path, "open", MagicMock()),
-                    patch("kubeseal_auto.host.tarfile.open") as mock_tarfile,
+                    patch("kubeseal_auto.core.host.tarfile.open") as mock_tarfile,
                 ):
                     mock_tar = MagicMock()
                     mock_member = MagicMock()

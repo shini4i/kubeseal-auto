@@ -14,8 +14,8 @@ from kubernetes.config.config_exception import ConfigException
 from urllib3.exceptions import MaxRetryError
 
 from kubeseal_auto import console
+from kubeseal_auto.core.host import Host, normalize_version
 from kubeseal_auto.exceptions import ClusterConnectionError, ControllerNotFoundError
-from kubeseal_auto.host import Host, normalize_version
 from kubeseal_auto.models import ControllerInfo
 from kubeseal_auto.styles import POINTER, PROMPT_STYLE, QMARK
 
@@ -119,9 +119,7 @@ class Cluster:
                     label_selector="app.kubernetes.io/name=sealed-secrets"
                 ).items
             except MaxRetryError as e:
-                raise ClusterConnectionError(
-                    f"Failed to connect to the Kubernetes cluster: {e.reason}"
-                ) from e
+                raise ClusterConnectionError(f"Failed to connect to the Kubernetes cluster: {e.reason}") from e
 
             # Further filter out metrics services
             found_services = [svc for svc in found_services if "metrics" not in svc.metadata.name]
@@ -220,7 +218,4 @@ class Cluster:
 
     def __repr__(self) -> str:
         """Return a detailed string representation for debugging."""
-        return (
-            f"Cluster(context={self.context!r}, "
-            f"controller={self.controller!r})"
-        )
+        return f"Cluster(context={self.context!r}, controller={self.controller!r})"

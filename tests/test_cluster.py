@@ -6,7 +6,7 @@ import pytest
 from kubernetes.config.config_exception import ConfigException
 from urllib3.exceptions import MaxRetryError, NewConnectionError
 
-from kubeseal_auto.cluster import Cluster
+from kubeseal_auto.core.cluster import Cluster
 from kubeseal_auto.exceptions import ClusterConnectionError, ControllerNotFoundError
 from kubeseal_auto.models import ControllerInfo
 
@@ -16,8 +16,9 @@ class TestClusterContextSelection:
 
     def test_set_context_without_selection(self, mock_kube_contexts, mock_kube_config):
         """Test using current context without selection."""
-        with patch.object(Cluster, "_find_sealed_secrets_controller") as mock_controller, patch.object(
-            Cluster, "get_all_namespaces"
+        with (
+            patch.object(Cluster, "_find_sealed_secrets_controller") as mock_controller,
+            patch.object(Cluster, "get_all_namespaces"),
         ):
             mock_controller.return_value = ControllerInfo(
                 name="sealed-secrets",
@@ -56,9 +57,7 @@ class TestClusterContextSelection:
     def test_set_context_invalid_kubeconfig(self):
         """Test error when kubeconfig is invalid or missing."""
         with patch("kubernetes.config.list_kube_config_contexts") as mock_contexts:
-            mock_contexts.side_effect = ConfigException(
-                "Invalid kube-config file. No configuration found."
-            )
+            mock_contexts.side_effect = ConfigException("Invalid kube-config file. No configuration found.")
 
             with pytest.raises(ClusterConnectionError) as exc_info:
                 Cluster(select_context=False)

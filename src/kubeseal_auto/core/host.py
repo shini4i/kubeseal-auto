@@ -4,6 +4,7 @@ This module provides the Host class for managing kubeseal binary
 downloads and platform detection.
 """
 
+import contextlib
 import os
 import platform
 import re
@@ -115,10 +116,7 @@ class Host:
 
     def __repr__(self) -> str:
         """Return a detailed string representation for debugging."""
-        return (
-            f"Host(system={self.system!r}, cpu_type={self.cpu_type!r}, "
-            f"bin_location={self.bin_location!r})"
-        )
+        return f"Host(system={self.system!r}, cpu_type={self.cpu_type!r}, bin_location={self.bin_location!r})"
 
     def _download_kubeseal_binary(self, version: str) -> None:
         """Download the kubeseal binary for the specified version.
@@ -163,10 +161,8 @@ class Host:
                 self._safe_extract_kubeseal(tar, normalized)
         finally:
             # Always clean up the temporary tarball, even if extraction fails
-            try:
+            with contextlib.suppress(OSError):
                 local_path.unlink(missing_ok=True)
-            except OSError:
-                pass  # Suppress removal errors to not mask original exception
 
     @staticmethod
     def _find_kubeseal_member(tar: tarfile.TarFile) -> tarfile.TarInfo | None:

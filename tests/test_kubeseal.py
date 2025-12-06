@@ -5,9 +5,10 @@ from unittest.mock import MagicMock, mock_open, patch
 import click
 import pytest
 
+from kubeseal_auto.core.kubeseal import Kubeseal
 from kubeseal_auto.exceptions import SecretParsingError
-from kubeseal_auto.kubeseal import Kubeseal, _validate_k8s_name
 from kubeseal_auto.models import SecretParams, SecretType
+from kubeseal_auto.secrets.prompts import validate_k8s_name
 
 
 class TestValidateK8sName:
@@ -15,48 +16,48 @@ class TestValidateK8sName:
 
     def test_valid_simple_name(self):
         """Test valid simple name."""
-        assert _validate_k8s_name("my-secret") is True
+        assert validate_k8s_name("my-secret") is True
 
     def test_valid_name_with_dots(self):
         """Test valid name with dots."""
-        assert _validate_k8s_name("my.secret.name") is True
+        assert validate_k8s_name("my.secret.name") is True
 
     def test_valid_name_with_numbers(self):
         """Test valid name with numbers."""
-        assert _validate_k8s_name("secret123") is True
+        assert validate_k8s_name("secret123") is True
 
     def test_empty_name(self):
         """Test empty name returns error."""
-        result = _validate_k8s_name("")
+        result = validate_k8s_name("")
         assert isinstance(result, str)
         assert "empty" in result.lower()
 
     def test_name_too_long(self):
         """Test name exceeding max length."""
         long_name = "a" * 254
-        result = _validate_k8s_name(long_name)
+        result = validate_k8s_name(long_name)
         assert isinstance(result, str)
         assert "253" in result
 
     def test_name_with_uppercase(self):
         """Test name with uppercase letters is invalid."""
-        result = _validate_k8s_name("MySecret")
+        result = validate_k8s_name("MySecret")
         assert isinstance(result, str)
         assert "lowercase" in result.lower()
 
     def test_name_starting_with_hyphen(self):
         """Test name starting with hyphen is invalid."""
-        result = _validate_k8s_name("-my-secret")
+        result = validate_k8s_name("-my-secret")
         assert isinstance(result, str)
 
     def test_name_ending_with_hyphen(self):
         """Test name ending with hyphen is invalid."""
-        result = _validate_k8s_name("my-secret-")
+        result = validate_k8s_name("my-secret-")
         assert isinstance(result, str)
 
     def test_name_with_underscore(self):
         """Test name with underscore is invalid."""
-        result = _validate_k8s_name("my_secret")
+        result = validate_k8s_name("my_secret")
         assert isinstance(result, str)
 
 
@@ -99,7 +100,7 @@ class TestKubesealSecretCreation:
             patch("questionary.select") as mock_select,
             patch("questionary.path") as mock_path,
             patch("builtins.open", mock_open()),
-            patch("kubeseal_auto.kubeseal.Path.exists", return_value=True),
+            patch("kubeseal_auto.secrets.prompts.Path.exists", return_value=True),
         ):
             # Simulate: file -> config.json, done
             mock_select.return_value.unsafe_ask.side_effect = ["file", "done"]
@@ -141,7 +142,7 @@ class TestKubesealSecretCreation:
             patch("questionary.text") as mock_text,
             patch("questionary.path") as mock_path,
             patch("builtins.open", mock_open()),
-            patch("kubeseal_auto.kubeseal.Path.exists", return_value=True),
+            patch("kubeseal_auto.secrets.prompts.Path.exists", return_value=True),
         ):
             # Simulate: literal, file, bulk, done
             mock_select.return_value.unsafe_ask.side_effect = ["literal", "file", "bulk", "done"]
@@ -163,7 +164,7 @@ class TestKubesealSecretCreation:
 
         with (
             patch("builtins.open", mock_open()),
-            patch("kubeseal_auto.kubeseal.Path.exists", return_value=True),
+            patch("kubeseal_auto.secrets.creation.Path.exists", return_value=True),
         ):
             kubeseal.create_tls_secret(secret_params)
 
