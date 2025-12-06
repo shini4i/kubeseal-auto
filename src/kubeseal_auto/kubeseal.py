@@ -506,7 +506,7 @@ class Kubeseal:
 
         Raises:
             SecretParsingError: If the file does not exist, contains multiple
-                documents, or contains malformed/invalid YAML.
+                documents, contains malformed/invalid YAML, or is not a YAML mapping.
 
         """
         try:
@@ -517,7 +517,15 @@ class Kubeseal:
                         f"File '{secret_name}' contains multiple YAML documents. "
                         "Only single document files are supported."
                     )
-                return docs[0] if docs else None
+                if not docs:
+                    return None
+                result = docs[0]
+                if not isinstance(result, dict):
+                    raise SecretParsingError(
+                        f"File '{secret_name}' does not contain a valid YAML mapping. "
+                        "Expected a Kubernetes resource document."
+                    )
+                return result
         except FileNotFoundError as err:
             raise SecretParsingError(f"Secret file '{secret_name}' does not exist") from err
         except yaml.YAMLError as err:

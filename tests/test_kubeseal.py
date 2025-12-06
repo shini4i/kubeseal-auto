@@ -181,7 +181,9 @@ class TestKubesealSecretCreation:
     def test_create_regcred_secret(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a docker-registry secret."""
         kubeseal = Kubeseal(select_context=False)
-        secret_params = SecretParams(name="test-regcred-secret", namespace="default", secret_type=SecretType.DOCKER_REGISTRY)
+        secret_params = SecretParams(
+            name="test-regcred-secret", namespace="default", secret_type=SecretType.DOCKER_REGISTRY
+        )
 
         docker_server = "https://index.docker.io/v1/"
         docker_username = "testuser"
@@ -323,6 +325,19 @@ class TestKubesealParsing:
             kubeseal.parse_existing_secret("malformed.yaml")
 
         assert "malformed YAML" in str(exc_info.value)
+
+    def test_parse_existing_secret_list_yaml(self, kubeseal_mocks):  # noqa: ARG002
+        """Test parsing a YAML file with a list raises SecretParsingError."""
+        kubeseal = Kubeseal(select_context=False)
+        list_yaml = "- kind: SealedSecret\n  metadata:\n    name: test\n"
+
+        with (
+            patch("builtins.open", mock_open(read_data=list_yaml)),
+            pytest.raises(SecretParsingError) as exc_info,
+        ):
+            kubeseal.parse_existing_secret("list.yaml")
+
+        assert "does not contain a valid YAML mapping" in str(exc_info.value)
 
 
 class TestKubesealDetachedMode:
