@@ -2,10 +2,13 @@
 
 from unittest.mock import MagicMock, mock_open, patch
 
+import click
 import pytest
 
+from kubeseal_auto.core.kubeseal import Kubeseal
 from kubeseal_auto.exceptions import SecretParsingError
-from kubeseal_auto.kubeseal import Kubeseal, _validate_k8s_name
+from kubeseal_auto.models import SecretParams, SecretType
+from kubeseal_auto.secrets.prompts import validate_k8s_name
 
 
 class TestValidateK8sName:
@@ -13,48 +16,48 @@ class TestValidateK8sName:
 
     def test_valid_simple_name(self):
         """Test valid simple name."""
-        assert _validate_k8s_name("my-secret") is True
+        assert validate_k8s_name("my-secret") is True
 
     def test_valid_name_with_dots(self):
         """Test valid name with dots."""
-        assert _validate_k8s_name("my.secret.name") is True
+        assert validate_k8s_name("my.secret.name") is True
 
     def test_valid_name_with_numbers(self):
         """Test valid name with numbers."""
-        assert _validate_k8s_name("secret123") is True
+        assert validate_k8s_name("secret123") is True
 
     def test_empty_name(self):
         """Test empty name returns error."""
-        result = _validate_k8s_name("")
+        result = validate_k8s_name("")
         assert isinstance(result, str)
         assert "empty" in result.lower()
 
     def test_name_too_long(self):
         """Test name exceeding max length."""
         long_name = "a" * 254
-        result = _validate_k8s_name(long_name)
+        result = validate_k8s_name(long_name)
         assert isinstance(result, str)
         assert "253" in result
 
     def test_name_with_uppercase(self):
         """Test name with uppercase letters is invalid."""
-        result = _validate_k8s_name("MySecret")
+        result = validate_k8s_name("MySecret")
         assert isinstance(result, str)
         assert "lowercase" in result.lower()
 
     def test_name_starting_with_hyphen(self):
         """Test name starting with hyphen is invalid."""
-        result = _validate_k8s_name("-my-secret")
+        result = validate_k8s_name("-my-secret")
         assert isinstance(result, str)
 
     def test_name_ending_with_hyphen(self):
         """Test name ending with hyphen is invalid."""
-        result = _validate_k8s_name("my-secret-")
+        result = validate_k8s_name("my-secret-")
         assert isinstance(result, str)
 
     def test_name_with_underscore(self):
         """Test name with underscore is invalid."""
-        result = _validate_k8s_name("my_secret")
+        result = validate_k8s_name("my_secret")
         assert isinstance(result, str)
 
 
@@ -64,7 +67,7 @@ class TestKubesealSecretCreation:
     def test_create_generic_secret(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a generic secret with key-value pairs."""
         kubeseal = Kubeseal(select_context=False)
-        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
+        secret_params = SecretParams(name="test-secret", namespace="default", secret_type=SecretType.GENERIC)
 
         with (
             patch("questionary.select") as mock_select,
@@ -91,12 +94,13 @@ class TestKubesealSecretCreation:
     def test_create_generic_secret_with_file(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a generic secret from file."""
         kubeseal = Kubeseal(select_context=False)
-        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
+        secret_params = SecretParams(name="test-secret", namespace="default", secret_type=SecretType.GENERIC)
 
         with (
             patch("questionary.select") as mock_select,
             patch("questionary.path") as mock_path,
             patch("builtins.open", mock_open()),
+            patch("kubeseal_auto.secrets.prompts.Path.exists", return_value=True),
         ):
             # Simulate: file -> config.json, done
             mock_select.return_value.unsafe_ask.side_effect = ["file", "done"]
@@ -110,7 +114,7 @@ class TestKubesealSecretCreation:
     def test_create_generic_secret_bulk_literals(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a generic secret with bulk literals."""
         kubeseal = Kubeseal(select_context=False)
-        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
+        secret_params = SecretParams(name="test-secret", namespace="default", secret_type=SecretType.GENERIC)
 
         with (
             patch("questionary.select") as mock_select,
@@ -131,13 +135,14 @@ class TestKubesealSecretCreation:
     def test_create_generic_secret_mixed_entries(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a generic secret with mixed entry types."""
         kubeseal = Kubeseal(select_context=False)
-        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
+        secret_params = SecretParams(name="test-secret", namespace="default", secret_type=SecretType.GENERIC)
 
         with (
             patch("questionary.select") as mock_select,
             patch("questionary.text") as mock_text,
             patch("questionary.path") as mock_path,
             patch("builtins.open", mock_open()),
+            patch("kubeseal_auto.secrets.prompts.Path.exists", return_value=True),
         ):
             # Simulate: literal, file, bulk, done
             mock_select.return_value.unsafe_ask.side_effect = ["literal", "file", "bulk", "done"]
@@ -155,9 +160,12 @@ class TestKubesealSecretCreation:
     def test_create_tls_secret(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a TLS secret."""
         kubeseal = Kubeseal(select_context=False)
-        secret_params = {"name": "test-tls-secret", "namespace": "default", "type": "tls"}
+        secret_params = SecretParams(name="test-tls-secret", namespace="default", secret_type=SecretType.TLS)
 
-        with patch("builtins.open", mock_open()):
+        with (
+            patch("builtins.open", mock_open()),
+            patch("kubeseal_auto.secrets.creation.Path.exists", return_value=True),
+        ):
             kubeseal.create_tls_secret(secret_params)
 
             mock_subprocess.assert_called_once()
@@ -180,7 +188,9 @@ class TestKubesealSecretCreation:
     def test_create_regcred_secret(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test creating a docker-registry secret."""
         kubeseal = Kubeseal(select_context=False)
-        secret_params = {"name": "test-regcred-secret", "namespace": "default", "type": "docker-registry"}
+        secret_params = SecretParams(
+            name="test-regcred-secret", namespace="default", secret_type=SecretType.DOCKER_REGISTRY
+        )
 
         docker_server = "https://index.docker.io/v1/"
         docker_username = "testuser"
@@ -212,8 +222,40 @@ class TestKubesealSecretCreation:
             assert "default" in cmd
             assert f"--docker-server={docker_server}" in cmd
             assert f"--docker-username={docker_username}" in cmd
-            assert f"--docker-password={docker_password}" in cmd
+            # Password is passed via stdin (--docker-password-stdin), not as argument
+            assert "--docker-password-stdin" in cmd
+            assert "--docker-password=" not in " ".join(cmd)
+            # Verify password was passed via stdin
+            call_kwargs = mock_subprocess.call_args[1]
+            assert call_kwargs.get("input") == docker_password.encode()
             assert "--dry-run=client" in cmd
+
+    def test_create_tls_secret_missing_files(self, kubeseal_mocks):  # noqa: ARG002
+        """Test creating a TLS secret with missing files raises ClickException."""
+        kubeseal = Kubeseal(select_context=False)
+        secret_params = SecretParams(name="test-tls-secret", namespace="default", secret_type=SecretType.TLS)
+
+        with pytest.raises(click.ClickException) as exc_info:
+            kubeseal.create_tls_secret(secret_params)
+
+        assert "Required TLS file(s) not found" in str(exc_info.value)
+
+    def test_create_generic_secret_file_not_found(self, kubeseal_mocks):  # noqa: ARG002
+        """Test creating a generic secret with non-existent file raises ClickException."""
+        kubeseal = Kubeseal(select_context=False)
+        secret_params = SecretParams(name="test-secret", namespace="default", secret_type=SecretType.GENERIC)
+
+        with (
+            patch("questionary.select") as mock_select,
+            patch("questionary.path") as mock_path,
+        ):
+            mock_select.return_value.unsafe_ask.side_effect = ["file", "done"]
+            mock_path.return_value.unsafe_ask.return_value = "nonexistent.json"
+
+            with pytest.raises(click.ClickException) as exc_info:
+                kubeseal.create_generic_secret(secret_params)
+
+        assert "File not found: nonexistent.json" in str(exc_info.value)
 
 
 class TestKubesealSealing:
@@ -222,7 +264,7 @@ class TestKubesealSealing:
     def test_seal(self, kubeseal_mocks, mock_subprocess):  # noqa: ARG002
         """Test sealing a secret."""
         kubeseal = Kubeseal(select_context=False)
-        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
+        secret_params = SecretParams(name="test-secret", namespace="default", secret_type=SecretType.GENERIC)
 
         with patch(
             "builtins.open", mock_open(read_data="apiVersion: v1\nkind: Secret\nmetadata:\n  name: test-secret")
@@ -240,7 +282,7 @@ class TestKubesealSealing:
     def test_seal_detached_mode(self, mock_subprocess):
         """Test sealing a secret in detached mode."""
         kubeseal = Kubeseal(select_context=False, certificate="test-cert.crt")
-        secret_params = {"name": "test-secret", "namespace": "default", "type": "generic"}
+        secret_params = SecretParams(name="test-secret", namespace="default", secret_type=SecretType.GENERIC)
 
         with patch(
             "builtins.open", mock_open(read_data="apiVersion: v1\nkind: Secret\nmetadata:\n  name: test-secret")
@@ -323,6 +365,19 @@ class TestKubesealParsing:
 
         assert "malformed YAML" in str(exc_info.value)
 
+    def test_parse_existing_secret_list_yaml(self, kubeseal_mocks):  # noqa: ARG002
+        """Test parsing a YAML file with a list raises SecretParsingError."""
+        kubeseal = Kubeseal(select_context=False)
+        list_yaml = "- kind: SealedSecret\n  metadata:\n    name: test\n"
+
+        with (
+            patch("builtins.open", mock_open(read_data=list_yaml)),
+            pytest.raises(SecretParsingError) as exc_info,
+        ):
+            kubeseal.parse_existing_secret("list.yaml")
+
+        assert "does not contain a valid YAML mapping" in str(exc_info.value)
+
 
 class TestKubesealDetachedMode:
     """Tests for detached mode operations."""
@@ -362,9 +417,9 @@ class TestKubesealCollectParameters:
 
             params = kubeseal.collect_parameters()
 
-            assert params["namespace"] == "default"
-            assert params["type"] == "generic"
-            assert params["name"] == "my-secret"
+            assert params.namespace == "default"
+            assert params.secret_type == SecretType.GENERIC
+            assert params.name == "my-secret"
 
     def test_collect_parameters_detached_mode(self):
         """Test collecting parameters in detached mode."""
@@ -379,6 +434,6 @@ class TestKubesealCollectParameters:
 
             params = kubeseal.collect_parameters()
 
-            assert params["namespace"] == "custom-namespace"
-            assert params["type"] == "generic"
-            assert params["name"] == "my-secret"
+            assert params.namespace == "custom-namespace"
+            assert params.secret_type == SecretType.GENERIC
+            assert params.name == "my-secret"

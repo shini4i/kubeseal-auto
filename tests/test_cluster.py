@@ -6,8 +6,9 @@ import pytest
 from kubernetes.config.config_exception import ConfigException
 from urllib3.exceptions import MaxRetryError, NewConnectionError
 
-from kubeseal_auto.cluster import Cluster
+from kubeseal_auto.core.cluster import Cluster
 from kubeseal_auto.exceptions import ClusterConnectionError, ControllerNotFoundError
+from kubeseal_auto.models import ControllerInfo
 
 
 class TestClusterContextSelection:
@@ -15,14 +16,15 @@ class TestClusterContextSelection:
 
     def test_set_context_without_selection(self, mock_kube_contexts, mock_kube_config):
         """Test using current context without selection."""
-        with patch.object(Cluster, "_find_sealed_secrets_controller") as mock_controller, patch.object(
-            Cluster, "get_all_namespaces"
+        with (
+            patch.object(Cluster, "_find_sealed_secrets_controller") as mock_controller,
+            patch.object(Cluster, "get_all_namespaces"),
         ):
-            mock_controller.return_value = {
-                "name": "sealed-secrets",
-                "namespace": "kube-system",
-                "version": "v0.26.0",
-            }
+            mock_controller.return_value = ControllerInfo(
+                name="sealed-secrets",
+                namespace="kube-system",
+                version="v0.26.0",
+            )
 
             cluster = Cluster(select_context=False)
 
@@ -41,11 +43,11 @@ class TestClusterContextSelection:
                 {"name": "context1"},
             )
             mock_select.return_value.ask.return_value = "context2"
-            mock_controller.return_value = {
-                "name": "sealed-secrets",
-                "namespace": "kube-system",
-                "version": "v0.26.0",
-            }
+            mock_controller.return_value = ControllerInfo(
+                name="sealed-secrets",
+                namespace="kube-system",
+                version="v0.26.0",
+            )
 
             cluster = Cluster(select_context=True)
 
@@ -55,9 +57,7 @@ class TestClusterContextSelection:
     def test_set_context_invalid_kubeconfig(self):
         """Test error when kubeconfig is invalid or missing."""
         with patch("kubernetes.config.list_kube_config_contexts") as mock_contexts:
-            mock_contexts.side_effect = ConfigException(
-                "Invalid kube-config file. No configuration found."
-            )
+            mock_contexts.side_effect = ConfigException("Invalid kube-config file. No configuration found.")
 
             with pytest.raises(ClusterConnectionError) as exc_info:
                 Cluster(select_context=False)
@@ -84,9 +84,9 @@ class TestClusterControllerDiscovery:
 
             cluster = Cluster(select_context=False)
 
-            assert cluster.controller["name"] == "sealed-secrets-controller"
-            assert cluster.controller["namespace"] == "kube-system"
-            assert cluster.controller["version"] == "v0.26.0"
+            assert cluster.controller.name == "sealed-secrets-controller"
+            assert cluster.controller.namespace == "kube-system"
+            assert cluster.controller.version == "v0.26.0"
 
     def test_find_controller_not_found(self, mock_kube_contexts, mock_kube_config):
         """Test error when controller is not found."""
@@ -123,7 +123,7 @@ class TestClusterControllerDiscovery:
             cluster = Cluster(select_context=False)
 
             # Should select the controller, not the metrics service
-            assert cluster.controller["name"] == "sealed-secrets-controller"
+            assert cluster.controller.name == "sealed-secrets-controller"
 
     def test_find_controller_connection_error(self, mock_kube_contexts, mock_kube_config):
         """Test error when cluster is unreachable."""
@@ -170,29 +170,40 @@ class TestClusterNamespaces:
             assert len(namespaces) == 3
 
 
-class TestClusterGetters:
-    """Tests for getter methods."""
+class TestClusterProperties:
+    """Tests for property accessors."""
 
-    def test_get_controller_name(self, mock_kube_contexts, mock_kube_config, mock_controller, mock_namespaces):
-        """Test getting controller name."""
+    def test_controller_name(self, mock_kube_contexts, mock_kube_config, mock_controller, mock_namespaces):
+        """Test controller_name property."""
         cluster = Cluster(select_context=False)
-        assert cluster.get_controller_name() == "sealed-secrets-controller"
+        assert cluster.controller_name == "sealed-secrets-controller"
 
-    def test_get_controller_namespace(self, mock_kube_contexts, mock_kube_config, mock_controller, mock_namespaces):
-        """Test getting controller namespace."""
+    def test_controller_namespace(self, mock_kube_contexts, mock_kube_config, mock_controller, mock_namespaces):
+        """Test controller_namespace property."""
         cluster = Cluster(select_context=False)
-        assert cluster.get_controller_namespace() == "kube-system"
+        assert cluster.controller_namespace == "kube-system"
 
-    def test_get_controller_version(self, mock_kube_contexts, mock_kube_config, mock_controller, mock_namespaces):
-        """Test getting controller version."""
+    def test_controller_version(self, mock_kube_contexts, mock_kube_config, mock_controller, mock_namespaces):
+        """Test controller_version property."""
         cluster = Cluster(select_context=False)
-        # Version is "v0.26.0", split removes "v" prefix
-        assert cluster.get_controller_version() == "0.26.0"
+        # Version is "v0.26.0", normalize_version removes "v" prefix
+        assert cluster.controller_version == "0.26.0"
 
-    def test_get_context(self, mock_kube_contexts, mock_kube_config, mock_controller, mock_namespaces):
-        """Test getting current context."""
+    def test_controller_version_empty(self, mock_kube_contexts, mock_kube_config, mock_namespaces):
+        """Test controller_version returns empty string when version label is missing."""
+        with patch.object(Cluster, "_find_sealed_secrets_controller") as mock_find:
+            mock_find.return_value = ControllerInfo(
+                name="sealed-secrets",
+                namespace="kube-system",
+                version="",  # Empty version label
+            )
+            cluster = Cluster(select_context=False)
+            assert cluster.controller_version == ""
+
+    def test_context_attribute(self, mock_kube_contexts, mock_kube_config, mock_controller, mock_namespaces):
+        """Test context attribute access."""
         cluster = Cluster(select_context=False)
-        assert cluster.get_context() == "test-context"
+        assert cluster.context == "test-context"
 
 
 class TestClusterCertificateDiscovery:
