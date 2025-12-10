@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "kubeseal-auto"
-version = "0.6.0"
+version = "0.7.0"
 description = "An interactive wrapper for kubeseal binary"
 authors = ["Vadim Gedz <github@shini4i.dev>"]
 license = "MIT"

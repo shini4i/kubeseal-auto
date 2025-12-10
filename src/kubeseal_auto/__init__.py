@@ -13,7 +13,7 @@ Example usage:
     kubeseal = Kubeseal(select_context=False, certificate="my-cert.crt")
 """
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 from kubeseal_auto.cli import cli
 from kubeseal_auto.core.cluster import Cluster

@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2025-12-10
+
+### Added
+- **Nix Support**: Added `flake.nix` for reproducible development environments.
+- **Type Safety**: Implemented static typing throughout the codebase with `mypy` enforcement.
+- **Rich UI**: Integrated `rich` library for modern terminal output, spinners, and progress bars.
+- **Architecture**: Introduced domain models (`SecretParams`, `ControllerInfo`) and a custom exception hierarchy for better error handling.
+- **Dev Tooling**: Added `ruff` for fast linting and formatting.
+
+### Changed
+- **Refactor**: Complete structural overhaul. Split monolithic logic into `core` (cluster, host) and `secrets` (creation, sealing, parsing) packages.
+- **Security**: Replaced unsafe `shell=True` subprocess calls with secure list-based execution (`subprocess.run`).
+- **Security**: Implemented safe tarfile extraction to prevent path traversal vulnerabilities during binary download.
+- **Security**: Docker registry passwords are now passed via stdin to avoid exposure in process listings.
+- **UX**: Enhanced interactive prompts with `questionary` autocomplete and custom styling.
+- **Dependencies**: Replaced `colorama` with `rich`.
+
+### Fixed
+- **Resource Management**: The `Kubeseal` class is now a context manager, ensuring temporary files are rigorously cleaned up even if errors occur.
+- **Validation**: Added strict validation for Kubernetes resource names (DNS subdomain standards) and Docker credentials.
+
 ## [0.6.0] - 2025-06-04
 ### Fixed
 - SealedSecret annotations are now preserved while updating argocd.argoproj.io/sync-options
