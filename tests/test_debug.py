@@ -12,9 +12,11 @@ def _reset_logger():
     """Reset logger state between tests."""
     original_level = logger.level
     original_handlers = logger.handlers[:]
+    original_propagate = logger.propagate
     yield
     logger.setLevel(original_level)
     logger.handlers = original_handlers
+    logger.propagate = original_propagate
 
 
 class TestConfigureDebug:
@@ -56,7 +58,6 @@ class TestIcFunction:
             ic("test_value")
 
         assert "test_value" in caplog.text
-        logger.propagate = False
 
     def test_ic_silent_when_debug_disabled(self, caplog):
         """Test ic() produces no output when debug is disabled."""
@@ -68,7 +69,6 @@ class TestIcFunction:
             ic("should_not_appear")
 
         assert "should_not_appear" not in caplog.text
-        logger.propagate = False
 
     def test_ic_bare_call(self, caplog):
         """Test ic() with no arguments logs call location."""
@@ -79,4 +79,3 @@ class TestIcFunction:
             ic()
 
         assert "ic|" in caplog.text
-        logger.propagate = False

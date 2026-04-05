@@ -282,6 +282,18 @@ class TestEditSecret:
         with pytest.raises(click.ClickException, match="missing required field"):
             edit_secret(mock_kubeseal, "no-metadata.yaml")
 
+    def test_edit_secret_metadata_not_a_dict(self):
+        """Test error when metadata value is not a dict (e.g., null in YAML)."""
+        mock_kubeseal = MagicMock()
+        mock_kubeseal.parse_existing_secret.return_value = {
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": None,
+        }
+
+        with pytest.raises(click.ClickException, match="missing required field"):
+            edit_secret(mock_kubeseal, "null-metadata.yaml")
+
 
 class TestCliSelect:
     """Tests for context selection."""

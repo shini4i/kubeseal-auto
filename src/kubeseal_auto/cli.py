@@ -66,7 +66,7 @@ def edit_secret(kubeseal: Kubeseal, file: str) -> None:
     try:
         name = secret["metadata"]["name"]
         namespace = secret["metadata"]["namespace"]
-    except KeyError as e:
+    except (KeyError, TypeError) as e:
         raise click.ClickException(
             f"Secret file '{file}' is missing required field: {e}"
         ) from None

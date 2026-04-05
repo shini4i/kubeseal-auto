@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `debug.py` module replaces `icecream` runtime dependency, providing identical `--debug` flag UX via Python's built-in `logging`.
+
+### Changed
+- Temp file cleanup now registers an `atexit` handler in addition to the context manager, covering non-context-manager usage paths.
+
+### Fixed
+- `--edit` no longer crashes with an unhandled error when a secret file is missing `metadata.name` or `metadata.namespace`; a clear error message is shown instead.
+
 ## [0.7.0] - 2025-12-10
 
 ### Added
