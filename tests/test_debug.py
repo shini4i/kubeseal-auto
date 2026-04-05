@@ -1,6 +1,7 @@
 """Tests for debug.py module."""
 
 import logging
+from collections.abc import Iterator
 
 import pytest
 
@@ -8,7 +9,7 @@ from kubeseal_auto.debug import configure_debug, ic, logger
 
 
 @pytest.fixture(autouse=True)
-def _reset_logger():
+def _reset_logger() -> Iterator[None]:
     """Reset logger state between tests."""
     original_level = logger.level
     original_handlers = logger.handlers[:]

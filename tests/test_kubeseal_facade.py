@@ -116,10 +116,16 @@ class TestKubesealCleanup:
         assert not temp_path.exists()
 
     def test_cleanup_idempotent(self, kubeseal_mocks):  # noqa: ARG002
-        """Test that cleanup can be called multiple times safely."""
+        """Test that cleanup can be called multiple times safely and removes the file."""
         kubeseal = Kubeseal(select_context=False)
+        temp_path = kubeseal._temp_file_path
+        assert temp_path.exists()
+
         kubeseal._cleanup_temp_file()
+        assert not temp_path.exists()
+
         kubeseal._cleanup_temp_file()  # Should not raise
+        assert not temp_path.exists()
 
 
 class TestKubesealEmptyVersion:

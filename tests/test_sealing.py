@@ -32,8 +32,6 @@ class TestSealSecret:
             secret_type=SecretType.GENERIC,
         )
 
-        sealed_output = "apiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: test-secret\n  namespace: default\n"
-
         with (
             patch("subprocess.run") as mock_run,
             patch("kubeseal_auto.secrets.sealing.append_argo_annotation"),
@@ -49,8 +47,8 @@ class TestSealSecret:
 
             mock_run.assert_called_once()
 
-    def test_seal_secret_failure_cleans_up(self, tmp_path):
-        """Test that partial output is cleaned up on failure."""
+    def test_seal_secret_raises_on_failure(self, tmp_path):
+        """Test that seal_secret raises ClickException on subprocess failure."""
         temp_file = tmp_path / "temp_secret.yaml"
         temp_file.write_text("apiVersion: v1\nkind: Secret\n")
 
@@ -128,9 +126,13 @@ class TestReencryptSecrets:
     """Tests for reencrypt_secrets function."""
 
     def test_reencrypt_no_secrets_found(self, tmp_path):
-        """Test warning when no SealedSecrets are found."""
-        with patch("kubeseal_auto.secrets.sealing._find_sealed_secrets", return_value=[]):
+        """Test warning when no SealedSecrets are found and no subprocess is spawned."""
+        with (
+            patch("kubeseal_auto.secrets.sealing._find_sealed_secrets", return_value=[]),
+            patch("subprocess.run") as mock_run,
+        ):
             reencrypt_secrets(src=str(tmp_path), kubeseal_cmd=["kubeseal"])
+            mock_run.assert_not_called()
 
     def test_reencrypt_success(self, tmp_path):
         """Test successful re-encryption of secrets."""

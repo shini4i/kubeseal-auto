@@ -134,6 +134,7 @@ class Kubeseal:
 
     def _cleanup_temp_file(self) -> None:
         """Remove the temporary file if it exists."""
+        atexit.unregister(self._cleanup_temp_file)
         if hasattr(self, "_temp_file_path"):
             with contextlib.suppress(OSError):
                 self._temp_file_path.unlink(missing_ok=True)

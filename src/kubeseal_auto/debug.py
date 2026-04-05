@@ -71,7 +71,7 @@ def ic(*args: object) -> None:
             logger.debug("ic| %r", arg)
 
 
-def configure_debug(enabled: bool) -> None:
+def configure_debug(*, enabled: bool) -> None:
     """Configure debug logging.
 
     Args:

@@ -162,7 +162,16 @@ class Cluster:
             if "sealed-secrets" in secret.metadata.name and secret.type == "kubernetes.io/tls"
         ]
 
-        ic(tls_secrets)
+        ic(
+            [
+                {
+                    "name": s.metadata.name,
+                    "namespace": s.metadata.namespace,
+                    "created": str(s.metadata.creation_timestamp),
+                }
+                for s in tls_secrets
+            ]
+        )
 
         if not tls_secrets:
             raise ControllerNotFoundError("No sealed-secrets TLS certificates found in the cluster")
