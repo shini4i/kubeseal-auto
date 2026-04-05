@@ -27,7 +27,7 @@ def parse_secret_file(secret_path: str) -> dict[str, Any] | None:
 
     """
     try:
-        with open(secret_path) as stream:
+        with open(secret_path, encoding="utf-8") as stream:
             docs = [doc for doc in yaml.safe_load_all(stream) if doc is not None]
             if len(docs) > 1:
                 raise SecretParsingError(
@@ -84,5 +84,5 @@ def append_argo_annotation(filename: str) -> None:
 
     annotations[sync_key] = ",".join(final_options)
 
-    with open(filename, "w") as stream:
+    with open(filename, "w", encoding="utf-8") as stream:
         yaml.safe_dump(secret, stream)

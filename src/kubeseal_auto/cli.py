@@ -71,6 +71,8 @@ def edit_secret(kubeseal: Kubeseal, file: str) -> None:
             f"Secret file '{file}' is missing required field: {e}"
         ) from None
 
+    # Note: edit always uses GENERIC type — new key-value entries are merged
+    # into the existing SealedSecret regardless of its original type.
     secret_params = SecretParams(
         name=name,
         namespace=namespace,
