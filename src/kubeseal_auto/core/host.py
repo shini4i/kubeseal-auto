@@ -13,7 +13,7 @@ import tempfile
 from pathlib import Path
 
 import requests
-from icecream import ic
+from kubeseal_auto.debug import ic
 
 from kubeseal_auto import console
 from kubeseal_auto.exceptions import BinaryNotFoundError, UnsupportedPlatformError

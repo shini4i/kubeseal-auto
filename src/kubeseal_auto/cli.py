@@ -9,9 +9,9 @@ secret management operations.
 import sys
 
 import click
-from icecream import ic
 
 from kubeseal_auto import __version__, console
+from kubeseal_auto.debug import configure_debug, ic
 from kubeseal_auto.core.kubeseal import Kubeseal
 from kubeseal_auto.exceptions import ClusterConnectionError, SecretParsingError
 from kubeseal_auto.models import SecretParams, SecretType
@@ -63,9 +63,17 @@ def edit_secret(kubeseal: Kubeseal, file: str) -> None:
     if secret is None:
         raise click.ClickException(f"Secret file '{file}' is empty")
 
+    try:
+        name = secret["metadata"]["name"]
+        namespace = secret["metadata"]["namespace"]
+    except KeyError as e:
+        raise click.ClickException(
+            f"Secret file '{file}' is missing required field: {e}"
+        ) from None
+
     secret_params = SecretParams(
-        name=secret["metadata"]["name"],
-        namespace=secret["metadata"]["namespace"],
+        name=name,
+        namespace=namespace,
         secret_type=SecretType.GENERIC,
     )
     ic(secret_params)
@@ -105,8 +113,7 @@ def cli(
         version: Print version and exit.
 
     """
-    if not debug:
-        ic.disable()
+    configure_debug(enabled=debug)
 
     if version:
         click.echo(__version__)

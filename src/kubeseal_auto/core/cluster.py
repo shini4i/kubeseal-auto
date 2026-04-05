@@ -8,7 +8,7 @@ from typing import Any
 
 import click
 import questionary
-from icecream import ic
+from kubeseal_auto.debug import ic
 from kubernetes import client, config
 from kubernetes.config.config_exception import ConfigException
 from urllib3.exceptions import MaxRetryError

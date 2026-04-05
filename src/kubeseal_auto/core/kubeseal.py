@@ -5,6 +5,7 @@ for all sealed secrets operations, coordinating between the various
 specialized modules.
 """
 
+import atexit
 import contextlib
 import shutil
 from pathlib import Path
@@ -102,6 +103,9 @@ class Kubeseal:
         self._temp_file_path: Path = Path(temp_file.name)
         temp_file.close()
 
+        # Register atexit cleanup as a reliable fallback for non-context-manager usage
+        atexit.register(self._cleanup_temp_file)
+
     def __enter__(self) -> "Kubeseal":
         """Enter context manager.
 
@@ -127,10 +131,6 @@ class Kubeseal:
         if self.detached_mode:
             return f"Kubeseal(detached_mode=True, certificate={self.certificate!r})"
         return f"Kubeseal(context={self.current_context_name!r}, controller={self.controller_name!r})"
-
-    def __del__(self) -> None:
-        """Ensure temp file cleanup if context manager wasn't used."""
-        self._cleanup_temp_file()
 
     def _cleanup_temp_file(self) -> None:
         """Remove the temporary file if it exists."""
