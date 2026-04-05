@@ -203,19 +203,13 @@ class Host:
         target_name = f"kubeseal-{version}"
         member.name = target_name
 
-        # Check if data_filter is available (Python 3.12+)
-        if hasattr(tarfile, "data_filter"):
-            # Use the safe data_filter for extraction
-            tar.extract(member, path=self.bin_location, filter="data")
-        else:
-            # Fallback for Python < 3.12: manual safe extraction
-            # Verify the extraction path stays within bin_location
-            extract_path = (self.bin_location / target_name).resolve()
-            bin_location_real = self.bin_location.resolve()
-            if not extract_path.is_relative_to(bin_location_real):
-                raise ValueError(f"Path traversal detected: {extract_path}")
+        # Verify the extraction path stays within bin_location to prevent path traversal
+        extract_path = (self.bin_location / target_name).resolve()
+        bin_location_real = self.bin_location.resolve()
+        if not extract_path.is_relative_to(bin_location_real):
+            raise ValueError(f"Path traversal detected: {extract_path}")
 
-            tar.extract(member, path=self.bin_location)
+        tar.extract(member, path=self.bin_location)
 
     def get_binary_path(self, version: str) -> Path:
         """Get the path to the kubeseal binary for the specified version.
