@@ -31,11 +31,11 @@ jobs:
           pip install pytest pytest-cov
 
       - name: Run Pytest
-        run: PYTHONPATH=src make test-coverage
+        run: PYTHONPATH=src poetry run pytest --cov=src --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@aa56896cf108bd10b5eb883cd1d24196da57f695 # v5.5.4
         with:
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: junit.xml
+          files: coverage.xml
