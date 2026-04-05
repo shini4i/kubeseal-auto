@@ -15,7 +15,7 @@ import click
 
 from kubeseal_auto import console
 from kubeseal_auto.core.cluster import Cluster
-from kubeseal_auto.exceptions import BinaryNotFoundError
+from kubeseal_auto.exceptions import BinaryNotFoundError, PathTraversalError
 from kubeseal_auto.models import SecretParams
 from kubeseal_auto.secrets.creation import (
     create_generic_secret,
@@ -91,7 +91,7 @@ class Kubeseal:
                 else:
                     console.warning("Controller version label not found")
                     self._fallback_to_system_binary()
-            except (BinaryNotFoundError, ValueError) as exc:
+            except (BinaryNotFoundError, PathTraversalError, ValueError) as exc:
                 console.warning(
                     f"Failed to resolve controller version ({exc}); falling back to system kubeseal binary",
                 )

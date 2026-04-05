@@ -16,7 +16,7 @@ import requests
 from kubeseal_auto.debug import ic
 
 from kubeseal_auto import console
-from kubeseal_auto.exceptions import BinaryNotFoundError, UnsupportedPlatformError
+from kubeseal_auto.exceptions import BinaryNotFoundError, PathTraversalError, UnsupportedPlatformError
 
 # Semantic version pattern for validation
 _SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+(?:-[\w.]+)?(?:\+[\w.]+)?$")
@@ -183,17 +183,19 @@ class Host:
     def _safe_extract_kubeseal(self, tar: tarfile.TarFile, version: str) -> None:
         """Safely extract the kubeseal binary from a tar archive.
 
-        Uses tarfile.data_filter when available (Python 3.12+) for enhanced
-        security against path traversal attacks. Falls back to manual safe
-        checks for older Python versions.
+        Locates the ``kubeseal`` member inside *tar*, renames it to
+        ``kubeseal-{version}``, and extracts it directly into
+        ``self.bin_location``.  Before extraction a path-traversal check
+        ensures the resolved target path stays within ``self.bin_location``.
 
         Args:
             tar: The open TarFile object to extract from.
             version: The version string for naming the extracted binary.
 
         Raises:
-            ValueError: If the kubeseal binary is not found in the archive
-                       or if path traversal is detected.
+            ValueError: If the kubeseal binary is not found in the archive.
+            PathTraversalError: If the resolved extraction path would escape
+                ``self.bin_location``.
 
         """
         member = self._find_kubeseal_member(tar)
@@ -207,7 +209,7 @@ class Host:
         extract_path = (self.bin_location / target_name).resolve()
         bin_location_real = self.bin_location.resolve()
         if not extract_path.is_relative_to(bin_location_real):
-            raise ValueError(f"Path traversal detected: {extract_path}")
+            raise PathTraversalError(extract_path)
 
         tar.extract(member, path=self.bin_location)
 

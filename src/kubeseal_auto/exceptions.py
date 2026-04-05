@@ -53,6 +53,23 @@ class UnsupportedPlatformError(KubesealError):
     """
 
 
+class PathTraversalError(KubesealError):
+    """Raised when a tar archive member would extract outside the target directory.
+
+    This is a security measure to prevent path traversal attacks when
+    extracting downloaded kubeseal binaries from tar archives.
+    """
+
+    def __init__(self, path: object) -> None:
+        """Initialize with the offending extraction path.
+
+        Args:
+            path: The resolved path that escapes the target directory.
+
+        """
+        super().__init__(f"Path traversal detected: {path}")
+
+
 class SecretParsingError(KubesealError):
     """Raised when parsing a secret file fails.
 
