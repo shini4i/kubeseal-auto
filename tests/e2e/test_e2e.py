@@ -9,6 +9,8 @@ Requires: a reachable Kubernetes cluster with sealed-secrets controller.
 Skipped automatically when no cluster is available (see conftest.py).
 """
 
+import subprocess
+import uuid
 from pathlib import Path
 
 import pexpect
@@ -132,7 +134,7 @@ def test_02_create_generic_connected(
     child = _spawn([], cwd=str(e2e_workdir), env=spawn_env)
 
     _fill_secret_params(child, namespace="default", secret_type_downs=0, name="e2e-test-secret")
-    _add_literal_then_done(child, "username=admin")
+    _add_literal_then_done(child, f"username={uuid.uuid4().hex[:12]}")
 
     _finish(child, label="Connected generic seal")
 
@@ -157,7 +159,7 @@ def test_03_create_generic_detached(
     child = _spawn(["--cert", str(cert_path)], cwd=str(e2e_workdir), env=spawn_env)
 
     _fill_secret_params(child, namespace="default", secret_type_downs=0, name="e2e-detached-secret")
-    _add_literal_then_done(child, "token=abc123")
+    _add_literal_then_done(child, f"token={uuid.uuid4().hex[:16]}")
 
     _finish(child, label="Detached generic seal")
 
@@ -179,8 +181,6 @@ def test_04_create_tls_connected(
     cert_file = e2e_workdir / "tls.crt"
 
     # Generate a self-signed certificate for testing
-    import subprocess
-
     subprocess.run(
         [
             "openssl",
@@ -233,10 +233,10 @@ def test_05_create_regcred_connected(
     child.sendline("ghcr.io")
 
     child.expect("docker-username", timeout=10)
-    child.sendline("testuser")
+    child.sendline(f"user-{uuid.uuid4().hex[:8]}")
 
     child.expect("docker-password", timeout=10)
-    child.sendline("testpass")
+    child.sendline(uuid.uuid4().hex)
 
     _finish(child, label="Connected docker-registry seal")
 
@@ -259,7 +259,7 @@ def test_06_edit_secret(
     child = _spawn(["--edit", str(sealed_file)], cwd=str(e2e_workdir), env=spawn_env)
 
     # Edit flow only prompts for entries (name/namespace come from the file)
-    _add_literal_then_done(child, "password=secret123")
+    _add_literal_then_done(child, f"password={uuid.uuid4().hex[:16]}")
 
     _finish(child, label="Edit secret")
 
@@ -309,10 +309,18 @@ def test_08_reencrypt(
     _finish(child, label="Re-encrypt", timeout=120)
 
     # Verify files are still valid SealedSecrets with the same keys
+    # and that at least some encrypted values actually changed
+    any_value_changed = False
     for filename, old_encrypted in original_data.items():
         filepath = e2e_workdir / filename
         assert filepath.exists(), f"{filename} disappeared after re-encryption"
 
         content = yaml.safe_load(filepath.read_text())
         assert content["kind"] == "SealedSecret"
-        assert set(content["spec"]["encryptedData"].keys()) == set(old_encrypted.keys())
+        new_encrypted = content["spec"]["encryptedData"]
+        assert set(new_encrypted.keys()) == set(old_encrypted.keys())
+
+        if new_encrypted != old_encrypted:
+            any_value_changed = True
+
+    assert any_value_changed, "Re-encryption did not change any encrypted values"

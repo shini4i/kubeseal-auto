@@ -6,6 +6,7 @@ and paths to artifacts produced by sequential e2e test flows.
 
 import os
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -50,14 +51,16 @@ def kind_context() -> str:
 
 
 @pytest.fixture(scope="session")
-def kubeseal_on_path() -> None:
+def kubeseal_on_path() -> Iterator[None]:
     """Ensure a bare ``kubeseal`` symlink exists in the managed bin directory.
 
     kubeseal-auto stores downloaded binaries as ``kubeseal-{version}``
     under its managed bin directory.  Detached mode expects a bare
     ``kubeseal`` on PATH, so this fixture creates a symlink next to
-    the versioned binary.  Must be requested after a connected-mode
-    test has already triggered the binary download.
+    the versioned binary and removes it on teardown.
+
+    Must be requested after a connected-mode test has already triggered
+    the binary download.
     """
     xdg_data_home = os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
     bin_dir = Path(xdg_data_home) / "kubeseal-auto" / "bin"
@@ -66,11 +69,18 @@ def kubeseal_on_path() -> None:
         pytest.skip("kubeseal-auto managed bin directory does not exist — run a connected-mode test first")
 
     symlink = bin_dir / "kubeseal"
+    created = False
     if not symlink.exists():
         versioned = sorted(bin_dir.glob("kubeseal-*"))
         if not versioned:
             pytest.skip("No versioned kubeseal binary found in managed bin directory")
         symlink.symlink_to(versioned[-1].name)
+        created = True
+
+    yield
+
+    if created and symlink.is_symlink():
+        symlink.unlink()
 
 
 @pytest.fixture(scope="session")
