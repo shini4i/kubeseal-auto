@@ -77,6 +77,33 @@ class TestIcFunction:
         logger.propagate = True
 
         with caplog.at_level(logging.DEBUG, logger="kubeseal_auto"):
-            ic()
+            result = ic()
 
         assert "ic|" in caplog.text
+        assert result is None
+
+    def test_ic_single_arg_returns_value(self):
+        """Test ic() with one argument returns that argument."""
+        configure_debug(enabled=True)
+        logger.propagate = True
+
+        result = ic(42)
+
+        assert result == 42
+
+    def test_ic_multiple_args_returns_tuple(self):
+        """Test ic() with multiple arguments returns a tuple."""
+        configure_debug(enabled=True)
+        logger.propagate = True
+
+        result = ic("a", "b", "c")
+
+        assert result == ("a", "b", "c")
+
+    def test_ic_returns_value_when_debug_disabled(self):
+        """Test ic() returns values even when debug logging is disabled."""
+        configure_debug(enabled=False)
+
+        assert ic(42) == 42
+        assert ic("a", "b") == ("a", "b")
+        assert ic() is None

@@ -41,34 +41,42 @@ def _get_call_expression() -> str | None:
     return None
 
 
-def ic(*args: object) -> None:
+def ic(*args: object) -> object:
     """Log debug information in icecream-style format.
 
     When called with arguments, logs "ic| <expr>: <value>" where <expr>
     is the source expression passed to ic(). Falls back to plain repr
     if source inspection fails.
 
+    Mirrors icecream passthrough semantics: returns the single argument
+    for one-arg calls, a tuple for multi-arg calls, and None for bare
+    ic() calls, so ``x = ic(expr)`` works as expected.
+
     Args:
         *args: Values to log with their source expressions.
 
-    """
-    if not logger.isEnabledFor(logging.DEBUG):
-        return
+    Returns:
+        The single argument, a tuple of arguments, or None for bare calls.
 
+    """
     if not args:
         # Bare ic() call — log the call location
-        frame = inspect.currentframe()
-        if frame and frame.f_back:
-            caller = frame.f_back
-            logger.debug("ic| %s:%d", caller.f_code.co_filename, caller.f_lineno)
-        return
+        if logger.isEnabledFor(logging.DEBUG):
+            frame = inspect.currentframe()
+            if frame and frame.f_back:
+                caller = frame.f_back
+                logger.debug("ic| %s:%d", caller.f_code.co_filename, caller.f_lineno)
+        return None
 
-    expr = _get_call_expression()
-    if expr and len(args) == 1:
-        logger.debug("ic| %s: %r", expr, args[0])
-    else:
-        for arg in args:
-            logger.debug("ic| %r", arg)
+    if logger.isEnabledFor(logging.DEBUG):
+        expr = _get_call_expression()
+        if expr and len(args) == 1:
+            logger.debug("ic| %s: %r", expr, args[0])
+        else:
+            for arg in args:
+                logger.debug("ic| %r", arg)
+
+    return args[0] if len(args) == 1 else args
 
 
 def configure_debug(*, enabled: bool) -> None:
