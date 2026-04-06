@@ -156,8 +156,7 @@ def create_tls_secret(secret_params: SecretParams, output_path: Path) -> None:
 def create_regcred_secret(secret_params: SecretParams, output_path: Path) -> None:
     """Generate a temporary docker-registry secret YAML file.
 
-    Prompts user for Docker registry credentials. The password is passed via
-    stdin to avoid exposing it in process listings.
+    Prompts user for Docker registry credentials.
 
     Args:
         secret_params: SecretParams containing name and namespace.
@@ -171,7 +170,6 @@ def create_regcred_secret(secret_params: SecretParams, output_path: Path) -> Non
 
     docker_server, docker_username, docker_password = prompt_docker_credentials()
 
-    # Password is passed via stdin to avoid exposure in process listings
     cmd: list[str] = [
         "kubectl",
         "create",
@@ -182,13 +180,10 @@ def create_regcred_secret(secret_params: SecretParams, output_path: Path) -> Non
         secret_params.namespace,
         f"--docker-server={docker_server}",
         f"--docker-username={docker_username}",
-        "--docker-password-stdin",
+        f"--docker-password={docker_password}",
         _DRY_RUN_CLIENT,
         "-o",
         "yaml",
     ]
-    # Don't log cmd even though password is now via stdin (username/server are still sensitive)
 
-    _run_kubectl_write_output(
-        cmd, output_path, "docker-registry", input_data=docker_password.encode()
-    )
+    _run_kubectl_write_output(cmd, output_path, "docker-registry")
