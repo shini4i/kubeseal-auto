@@ -5,14 +5,16 @@ and paths to artifacts produced by sequential e2e test flows.
 """
 
 import os
+import re
 import subprocess
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
-# Default kind cluster context name created by helm/kind-action
-KIND_CONTEXT = "kind-chart-testing"
+# Default kind cluster context name created by helm/kind-action.
+# Override via KIND_CONTEXT env var for non-default cluster names.
+KIND_CONTEXT = os.environ.get("KIND_CONTEXT", "kind-chart-testing")
 
 
 def _cluster_is_reachable() -> bool:
@@ -71,7 +73,10 @@ def kubeseal_on_path() -> Iterator[None]:
     symlink = bin_dir / "kubeseal"
     created = False
     if not symlink.exists():
-        versioned = sorted(bin_dir.glob("kubeseal-*"))
+        versioned = sorted(
+            bin_dir.glob("kubeseal-*"),
+            key=lambda p: [int(x) for x in re.findall(r"\d+", p.name)],
+        )
         if not versioned:
             pytest.skip("No versioned kubeseal binary found in managed bin directory")
         symlink.symlink_to(versioned[-1].name)
