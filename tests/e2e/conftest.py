@@ -54,9 +54,17 @@ def spawn_env() -> dict[str, str]:
     """Build an environment dict suitable for pexpect spawns.
 
     Suppresses Rich/ANSI formatting and prevents line-wrapping
-    so that pexpect pattern matching is reliable.
+    so that pexpect pattern matching is reliable. Also adds the
+    kubeseal-auto managed binary directory to PATH so that detached
+    mode can find a previously downloaded kubeseal binary.
     """
     env = os.environ.copy()
+
+    # kubeseal-auto stores downloaded binaries under XDG_DATA_HOME/kubeseal-auto/bin/
+    xdg_data_home = env.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
+    managed_bin_dir = str(Path(xdg_data_home) / "kubeseal-auto" / "bin")
+    env["PATH"] = managed_bin_dir + os.pathsep + env.get("PATH", "")
+
     env.update(
         {
             "TERM": "dumb",
