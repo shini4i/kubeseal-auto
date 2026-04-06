@@ -9,9 +9,9 @@ secret management operations.
 import sys
 
 import click
-from icecream import ic
 
 from kubeseal_auto import __version__, console
+from kubeseal_auto.debug import configure_debug, ic
 from kubeseal_auto.core.kubeseal import Kubeseal
 from kubeseal_auto.exceptions import ClusterConnectionError, SecretParsingError
 from kubeseal_auto.models import SecretParams, SecretType
@@ -63,9 +63,19 @@ def edit_secret(kubeseal: Kubeseal, file: str) -> None:
     if secret is None:
         raise click.ClickException(f"Secret file '{file}' is empty")
 
+    try:
+        name = secret["metadata"]["name"]
+        namespace = secret["metadata"]["namespace"]
+    except (KeyError, TypeError) as e:
+        raise click.ClickException(
+            f"Secret file '{file}' is missing required field: {e}"
+        ) from None
+
+    # Note: edit always uses GENERIC type — new key-value entries are merged
+    # into the existing SealedSecret regardless of its original type.
     secret_params = SecretParams(
-        name=secret["metadata"]["name"],
-        namespace=secret["metadata"]["namespace"],
+        name=name,
+        namespace=namespace,
         secret_type=SecretType.GENERIC,
     )
     ic(secret_params)
@@ -74,14 +84,14 @@ def edit_secret(kubeseal: Kubeseal, file: str) -> None:
 
 
 @click.command(help="Automate the process of sealing secrets for Kubernetes")
-@click.option("--version", "-v", required=False, is_flag=True, help="print version")
-@click.option("--debug", required=False, is_flag=True, help="print debug information")
-@click.option("--select", required=False, is_flag=True, default=False, help="prompt for context select")
-@click.option("--fetch", required=False, is_flag=True, help="download kubeseal encryption cert")
-@click.option("--cert", "-c", required=False, help="certificate to seal secret with")
-@click.option("--edit", "-e", required=False, help="SealedSecrets file to edit")
-@click.option("--re-encrypt", required=False, help="path to directory with sealed secrets")
-@click.option("--backup", required=False, is_flag=True, help="backups controllers encryption secret")
+@click.option("--version", "-v", is_flag=True, help="print version")
+@click.option("--debug", is_flag=True, help="print debug information")
+@click.option("--select", is_flag=True, default=False, help="prompt for context select")
+@click.option("--fetch", is_flag=True, help="download kubeseal encryption cert")
+@click.option("--cert", "-c", help="certificate to seal secret with")
+@click.option("--edit", "-e", help="SealedSecrets file to edit")
+@click.option("--re-encrypt", help="path to directory with sealed secrets")
+@click.option("--backup", is_flag=True, help="backups controllers encryption secret")
 def cli(
     debug: bool,
     select: bool,
@@ -105,8 +115,7 @@ def cli(
         version: Print version and exit.
 
     """
-    if not debug:
-        ic.disable()
+    configure_debug(enabled=debug)
 
     if version:
         click.echo(__version__)

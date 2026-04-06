@@ -8,7 +8,7 @@ from typing import Any
 
 import click
 import questionary
-from icecream import ic
+from kubeseal_auto.debug import ic
 from kubernetes import client, config
 from kubernetes.config.config_exception import ConfigException
 from urllib3.exceptions import MaxRetryError
@@ -156,18 +156,28 @@ class Cluster:
 
         """
         res = client.CoreV1Api().list_namespaced_secret(self.controller.namespace)
-        secrets: list[dict[str, Any]] = []
-        for secret in res.items:
-            if "sealed-secrets" in secret.metadata.name and secret.type == "kubernetes.io/tls":
-                secrets.append({"name": secret.metadata.name, "timestamp": secret.metadata.creation_timestamp})
+        tls_secrets = [
+            secret
+            for secret in res.items
+            if "sealed-secrets" in secret.metadata.name and secret.type == "kubernetes.io/tls"
+        ]
 
-        ic(secrets)
+        ic(
+            [
+                {
+                    "name": s.metadata.name,
+                    "namespace": s.metadata.namespace,
+                    "created": str(s.metadata.creation_timestamp),
+                }
+                for s in tls_secrets
+            ]
+        )
 
-        if not secrets:
+        if not tls_secrets:
             raise ControllerNotFoundError("No sealed-secrets TLS certificates found in the cluster")
 
-        secrets.sort(key=lambda x: x["timestamp"])
-        return str(secrets[-1]["name"])
+        tls_secrets.sort(key=lambda s: s.metadata.creation_timestamp)
+        return str(tls_secrets[-1].metadata.name)
 
     def ensure_kubeseal_version(self, version: str) -> None:
         """Ensure the kubeseal binary for the specified version is available.

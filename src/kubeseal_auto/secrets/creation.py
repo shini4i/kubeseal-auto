@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 
 import click
-from icecream import ic
+from kubeseal_auto.debug import ic
 
 from kubeseal_auto import console
 from kubeseal_auto.models import SecretParams
@@ -44,7 +44,7 @@ def _run_kubectl_write_output(
 
     """
     try:
-        f = output_path.open("w")
+        f = output_path.open("w", encoding="utf-8")
     except OSError as err:
         raise click.ClickException(
             _ERR_OUTPUT_PATH.format(path=output_path, reason=err.strerror)

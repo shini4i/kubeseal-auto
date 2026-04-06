@@ -5,6 +5,7 @@ for all sealed secrets operations, coordinating between the various
 specialized modules.
 """
 
+import atexit
 import contextlib
 import shutil
 from pathlib import Path
@@ -14,7 +15,7 @@ import click
 
 from kubeseal_auto import console
 from kubeseal_auto.core.cluster import Cluster
-from kubeseal_auto.exceptions import BinaryNotFoundError
+from kubeseal_auto.exceptions import BinaryNotFoundError, PathTraversalError
 from kubeseal_auto.models import SecretParams
 from kubeseal_auto.secrets.creation import (
     create_generic_secret,
@@ -90,7 +91,7 @@ class Kubeseal:
                 else:
                     console.warning("Controller version label not found")
                     self._fallback_to_system_binary()
-            except (BinaryNotFoundError, ValueError) as exc:
+            except (BinaryNotFoundError, PathTraversalError, ValueError) as exc:
                 console.warning(
                     f"Failed to resolve controller version ({exc}); falling back to system kubeseal binary",
                 )
@@ -101,6 +102,9 @@ class Kubeseal:
         temp_file = NamedTemporaryFile(delete=False)
         self._temp_file_path: Path = Path(temp_file.name)
         temp_file.close()
+
+        # Register atexit cleanup as a reliable fallback for non-context-manager usage
+        atexit.register(self._cleanup_temp_file)
 
     def __enter__(self) -> "Kubeseal":
         """Enter context manager.
@@ -128,12 +132,9 @@ class Kubeseal:
             return f"Kubeseal(detached_mode=True, certificate={self.certificate!r})"
         return f"Kubeseal(context={self.current_context_name!r}, controller={self.controller_name!r})"
 
-    def __del__(self) -> None:
-        """Ensure temp file cleanup if context manager wasn't used."""
-        self._cleanup_temp_file()
-
     def _cleanup_temp_file(self) -> None:
         """Remove the temporary file if it exists."""
+        atexit.unregister(self._cleanup_temp_file)
         if hasattr(self, "_temp_file_path"):
             with contextlib.suppress(OSError):
                 self._temp_file_path.unlink(missing_ok=True)

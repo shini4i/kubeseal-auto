@@ -5,6 +5,7 @@ and entries from users via interactive prompts.
 """
 
 import re
+from collections.abc import Callable
 from pathlib import Path
 
 import click
@@ -215,7 +216,7 @@ def _validate_docker_server(value: str) -> bool | str:
     return True
 
 
-def _validate_non_empty(field_name: str) -> callable:
+def _validate_non_empty(field_name: str) -> Callable[[str], bool | str]:
     """Create a validator that checks for non-empty values.
 
     Args:

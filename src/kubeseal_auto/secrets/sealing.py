@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 
 import click
-from icecream import ic
+from kubeseal_auto.debug import ic
 
 from kubeseal_auto import console
 from kubeseal_auto.exceptions import SecretParsingError
@@ -32,10 +32,10 @@ def _find_sealed_secrets(src: str) -> list[Path]:
     for path in Path(src).rglob("*.yaml"):
         try:
             secret = parse_secret_file(str(path.absolute()))
-            if secret is not None and secret["kind"] == "SealedSecret":
+            if secret is not None and secret.get("kind") == "SealedSecret":
                 secrets.append(path.absolute())
-        except (KeyError, SecretParsingError):
-            # Not a SealedSecret or invalid file, skip
+        except SecretParsingError:
+            # Invalid or unreadable YAML file, skip
             continue
     return secrets
 
@@ -65,7 +65,7 @@ def seal_secret(
 
     try:
         with console.spinner("Sealing secret with kubeseal..."):
-            with open(temp_file_path) as stdin_f, open(output_file, "w") as stdout_f:
+            with open(temp_file_path, encoding="utf-8") as stdin_f, open(output_file, "w", encoding="utf-8") as stdout_f:
                 subprocess.run(kubeseal_cmd, stdin=stdin_f, stdout=stdout_f, stderr=subprocess.PIPE, check=True)
             append_argo_annotation(filename=output_file)
     except subprocess.CalledProcessError as err:
@@ -110,7 +110,7 @@ def merge_secret(
     ic(cmd)
 
     try:
-        with open(temp_file_path) as stdin_f:
+        with open(temp_file_path, encoding="utf-8") as stdin_f:
             subprocess.run(cmd, stdin=stdin_f, stderr=subprocess.PIPE, check=True)
     except subprocess.CalledProcessError as err:
         stderr_msg = err.stderr.decode().strip() if err.stderr else ""
@@ -148,7 +148,7 @@ def reencrypt_secrets(src: str, kubeseal_cmd: list[str]) -> None:
             ic(cmd)
 
             try:
-                with secret.open() as stdin_f, output_tmp.open("w") as stdout_f:
+                with secret.open(encoding="utf-8") as stdin_f, output_tmp.open("w", encoding="utf-8") as stdout_f:
                     subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, stderr=subprocess.PIPE, check=True)
                 # Atomic replace on success
                 output_tmp.replace(secret)
@@ -202,7 +202,7 @@ def fetch_certificate(
 
     output_file = f"{context_name}-kubeseal-cert.crt"
     try:
-        with open(output_file, "w") as f:
+        with open(output_file, "w", encoding="utf-8") as f:
             subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, check=True)
     except subprocess.CalledProcessError as err:
         # Clean up partial output file on failure
@@ -245,7 +245,7 @@ def backup_controller_secret(
 
     output_file = f"{context_name}-secret-backup.yaml"
     try:
-        with open(output_file, "w") as f:
+        with open(output_file, "w", encoding="utf-8") as f:
             subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, check=True)
     except subprocess.CalledProcessError as err:
         # Clean up partial output file on failure

@@ -23,6 +23,7 @@ from kubeseal_auto.exceptions import (
     ClusterConnectionError,
     ControllerNotFoundError,
     KubesealError,
+    PathTraversalError,
     SecretParsingError,
     UnsupportedPlatformError,
 )
@@ -40,6 +41,7 @@ __all__ = [
     "BinaryNotFoundError",
     "ClusterConnectionError",
     "ControllerNotFoundError",
+    "PathTraversalError",
     "SecretParsingError",
     "UnsupportedPlatformError",
 ]

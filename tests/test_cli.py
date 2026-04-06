@@ -156,14 +156,14 @@ class TestCliEdit:
 class TestCliDebug:
     """Tests for debug mode."""
 
-    def test_debug_flag_enables_icecream(self):
-        """Test --debug flag keeps icecream enabled."""
+    def test_debug_flag_enables_debug_logging(self):
+        """Test --debug flag calls configure_debug with enabled=True."""
         runner = CliRunner()
 
         with (
             patch("kubeseal_auto.cli.Kubeseal") as mock_kubeseal,
             patch("kubeseal_auto.cli.create_new_secret"),
-            patch("kubeseal_auto.cli.ic") as mock_ic,
+            patch("kubeseal_auto.cli.configure_debug") as mock_configure,
         ):
             mock_instance = MagicMock()
             mock_instance.__enter__ = MagicMock(return_value=mock_instance)
@@ -173,8 +173,7 @@ class TestCliDebug:
             result = runner.invoke(cli, ["--debug"])
 
             assert result.exit_code == 0
-            # ic.disable() should not be called when debug is enabled
-            mock_ic.disable.assert_not_called()
+            mock_configure.assert_called_once_with(enabled=True)
 
 
 class TestCreateNewSecret:
@@ -260,6 +259,40 @@ class TestEditSecret:
 
         with pytest.raises(click.ClickException, match="empty"):
             edit_secret(mock_kubeseal, "empty.yaml")
+
+    def test_edit_secret_missing_metadata_fields(self):
+        """Test error when secret YAML is missing metadata.name or metadata.namespace."""
+        mock_kubeseal = MagicMock()
+        mock_kubeseal.parse_existing_secret.return_value = {
+            "metadata": {"name": "test-secret"}
+            # missing "namespace"
+        }
+
+        with pytest.raises(click.ClickException, match="missing required field"):
+            edit_secret(mock_kubeseal, "bad-secret.yaml")
+
+    def test_edit_secret_missing_metadata_key(self):
+        """Test error when secret YAML has no metadata key at all."""
+        mock_kubeseal = MagicMock()
+        mock_kubeseal.parse_existing_secret.return_value = {
+            "apiVersion": "v1",
+            "kind": "Secret",
+        }
+
+        with pytest.raises(click.ClickException, match="missing required field"):
+            edit_secret(mock_kubeseal, "no-metadata.yaml")
+
+    def test_edit_secret_metadata_not_a_dict(self):
+        """Test error when metadata value is not a dict (e.g., null in YAML)."""
+        mock_kubeseal = MagicMock()
+        mock_kubeseal.parse_existing_secret.return_value = {
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": None,
+        }
+
+        with pytest.raises(click.ClickException, match="missing required field"):
+            edit_secret(mock_kubeseal, "null-metadata.yaml")
 
 
 class TestCliSelect:
