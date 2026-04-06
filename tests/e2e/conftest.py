@@ -50,6 +50,30 @@ def kind_context() -> str:
 
 
 @pytest.fixture(scope="session")
+def kubeseal_on_path() -> None:
+    """Ensure a bare ``kubeseal`` symlink exists in the managed bin directory.
+
+    kubeseal-auto stores downloaded binaries as ``kubeseal-{version}``
+    under its managed bin directory.  Detached mode expects a bare
+    ``kubeseal`` on PATH, so this fixture creates a symlink next to
+    the versioned binary.  Must be requested after a connected-mode
+    test has already triggered the binary download.
+    """
+    xdg_data_home = os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
+    bin_dir = Path(xdg_data_home) / "kubeseal-auto" / "bin"
+
+    if not bin_dir.is_dir():
+        pytest.skip("kubeseal-auto managed bin directory does not exist — run a connected-mode test first")
+
+    symlink = bin_dir / "kubeseal"
+    if not symlink.exists():
+        versioned = sorted(bin_dir.glob("kubeseal-*"))
+        if not versioned:
+            pytest.skip("No versioned kubeseal binary found in managed bin directory")
+        symlink.symlink_to(versioned[-1].name)
+
+
+@pytest.fixture(scope="session")
 def spawn_env() -> dict[str, str]:
     """Build an environment dict suitable for pexpect spawns.
 

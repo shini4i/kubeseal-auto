@@ -104,6 +104,7 @@ def test_03_create_seal_detached(
     e2e_workdir: Path,
     kind_context: str,
     spawn_env: dict[str, str],
+    kubeseal_on_path: None,
 ) -> None:
     """Create and seal a generic secret in detached mode using a certificate."""
     cert_path = e2e_workdir / f"{kind_context}-kubeseal-cert.crt"
