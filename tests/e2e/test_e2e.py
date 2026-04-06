@@ -19,6 +19,95 @@ import yaml
 _DOWN = "\x1b[B"
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _spawn(
+    args: list[str],
+    *,
+    cwd: str,
+    env: dict[str, str],
+    timeout: int = 60,
+) -> pexpect.spawn:
+    """Spawn a kubeseal-auto process with common defaults."""
+    return pexpect.spawn(
+        "kubeseal-auto",
+        args,
+        cwd=cwd,
+        env=env,
+        timeout=timeout,
+    )
+
+
+def _finish(child: pexpect.spawn, *, label: str, timeout: int = 60) -> None:
+    """Wait for EOF and assert exit code 0."""
+    child.expect(pexpect.EOF, timeout=timeout)
+    child.close()
+    assert child.exitstatus == 0, f"{label} failed:\n{child.before}"
+
+
+def _select_down(child: pexpect.spawn, n: int) -> None:
+    """Send *n* down-arrow keys then Enter to confirm the selection."""
+    for _ in range(n):
+        child.send(_DOWN)
+    child.sendline("")
+
+
+def _fill_secret_params(
+    child: pexpect.spawn,
+    *,
+    namespace: str,
+    secret_type_downs: int,
+    name: str,
+) -> None:
+    """Answer the namespace / secret-type / name prompts."""
+    child.expect("namespace", timeout=30)
+    child.sendline(namespace)
+
+    child.expect("[Ss]ecret type", timeout=10)
+    _select_down(child, secret_type_downs)
+
+    child.expect("name", timeout=10)
+    child.sendline(name)
+
+
+def _add_literal_then_done(child: pexpect.spawn, literal: str) -> None:
+    """Add a single literal entry then select Done."""
+    # "Literal" is the first option
+    child.expect("[Aa]dd secret entry", timeout=10)
+    child.sendline("")
+
+    child.expect("key=value", timeout=10)
+    child.sendline(literal)
+
+    # "Done" is the 4th option (3 downs)
+    child.expect("[Aa]dd secret entry", timeout=10)
+    _select_down(child, 3)
+
+
+def _assert_sealed_secret(
+    path: Path,
+    *,
+    name: str,
+    expected_keys: list[str] | None = None,
+) -> None:
+    """Load a YAML file and assert it is a valid SealedSecret."""
+    assert path.exists(), f"Sealed secret file {path.name} was not created"
+    content = yaml.safe_load(path.read_text())
+    assert content["kind"] == "SealedSecret"
+    assert content["metadata"]["name"] == name
+    if expected_keys:
+        for key in expected_keys:
+            assert key in content["spec"]["encryptedData"], f"Key '{key}' missing from encryptedData"
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.e2e
 def test_01_fetch_certificate(
     e2e_workdir: Path,
@@ -26,17 +115,8 @@ def test_01_fetch_certificate(
     spawn_env: dict[str, str],
 ) -> None:
     """Fetch the kubeseal encryption certificate from the cluster."""
-    child = pexpect.spawn(
-        "kubeseal-auto",
-        ["--fetch"],
-        cwd=str(e2e_workdir),
-        env=spawn_env,
-        timeout=60,
-    )
-    child.expect(pexpect.EOF)
-    child.close()
-
-    assert child.exitstatus == 0, f"kubeseal-auto --fetch failed:\n{child.before}"
+    child = _spawn(["--fetch"], cwd=str(e2e_workdir), env=spawn_env)
+    _finish(child, label="kubeseal-auto --fetch")
 
     cert_file = e2e_workdir / f"{kind_context}-kubeseal-cert.crt"
     assert cert_file.exists(), "Certificate file was not created"
@@ -44,63 +124,27 @@ def test_01_fetch_certificate(
 
 
 @pytest.mark.e2e
-def test_02_create_seal_connected(
+def test_02_create_generic_connected(
     e2e_workdir: Path,
     spawn_env: dict[str, str],
 ) -> None:
     """Create and seal a generic secret in connected mode."""
-    child = pexpect.spawn(
-        "kubeseal-auto",
-        [],
-        cwd=str(e2e_workdir),
-        env=spawn_env,
-        timeout=60,
+    child = _spawn([], cwd=str(e2e_workdir), env=spawn_env)
+
+    _fill_secret_params(child, namespace="default", secret_type_downs=0, name="e2e-test-secret")
+    _add_literal_then_done(child, "username=admin")
+
+    _finish(child, label="Connected generic seal")
+
+    _assert_sealed_secret(
+        e2e_workdir / "e2e-test-secret.yaml",
+        name="e2e-test-secret",
+        expected_keys=["username"],
     )
-
-    # 1. Namespace prompt (autocomplete) — type "default" and press Enter
-    child.expect("namespace", timeout=30)
-    child.sendline("default")
-
-    # 2. Secret type (select) — "generic" is first, press Enter
-    child.expect("[Ss]ecret type", timeout=10)
-    child.sendline("")
-
-    # 3. Secret name (text)
-    child.expect("name", timeout=10)
-    child.sendline("e2e-test-secret")
-
-    # 4. Entry type (select) — "Literal" is first, press Enter
-    child.expect("[Aa]dd secret entry", timeout=10)
-    child.sendline("")
-
-    # 5. Key=value (text)
-    child.expect("key=value", timeout=10)
-    child.sendline("username=admin")
-
-    # 6. Entry type again — navigate to "Done" (4th option, 3 downs)
-    child.expect("[Aa]dd secret entry", timeout=10)
-    child.send(_DOWN)
-    child.send(_DOWN)
-    child.send(_DOWN)
-    child.sendline("")
-
-    child.expect(pexpect.EOF, timeout=60)
-    child.close()
-
-    assert child.exitstatus == 0, f"Connected seal failed:\n{child.before}"
-
-    sealed_file = e2e_workdir / "e2e-test-secret.yaml"
-    assert sealed_file.exists(), "Sealed secret file was not created"
-
-    content = yaml.safe_load(sealed_file.read_text())
-    assert content["kind"] == "SealedSecret"
-    assert content["metadata"]["name"] == "e2e-test-secret"
-    assert content["metadata"]["namespace"] == "default"
-    assert "username" in content["spec"]["encryptedData"]
 
 
 @pytest.mark.e2e
-def test_03_create_seal_detached(
+def test_03_create_generic_detached(
     e2e_workdir: Path,
     kind_context: str,
     spawn_env: dict[str, str],
@@ -110,57 +154,101 @@ def test_03_create_seal_detached(
     cert_path = e2e_workdir / f"{kind_context}-kubeseal-cert.crt"
     assert cert_path.exists(), "Certificate from test_01 not found — tests must run in order"
 
-    child = pexpect.spawn(
-        "kubeseal-auto",
-        ["--cert", str(cert_path)],
-        cwd=str(e2e_workdir),
-        env=spawn_env,
-        timeout=60,
+    child = _spawn(["--cert", str(cert_path)], cwd=str(e2e_workdir), env=spawn_env)
+
+    _fill_secret_params(child, namespace="default", secret_type_downs=0, name="e2e-detached-secret")
+    _add_literal_then_done(child, "token=abc123")
+
+    _finish(child, label="Detached generic seal")
+
+    _assert_sealed_secret(
+        e2e_workdir / "e2e-detached-secret.yaml",
+        name="e2e-detached-secret",
+        expected_keys=["token"],
     )
-
-    # 1. Namespace prompt (text input in detached mode)
-    child.expect("namespace", timeout=30)
-    child.sendline("default")
-
-    # 2. Secret type — "generic" is first
-    child.expect("[Ss]ecret type", timeout=10)
-    child.sendline("")
-
-    # 3. Secret name
-    child.expect("name", timeout=10)
-    child.sendline("e2e-detached-secret")
-
-    # 4. Entry type — "Literal" is first
-    child.expect("[Aa]dd secret entry", timeout=10)
-    child.sendline("")
-
-    # 5. Key=value
-    child.expect("key=value", timeout=10)
-    child.sendline("token=abc123")
-
-    # 6. Done (3 downs)
-    child.expect("[Aa]dd secret entry", timeout=10)
-    child.send(_DOWN)
-    child.send(_DOWN)
-    child.send(_DOWN)
-    child.sendline("")
-
-    child.expect(pexpect.EOF, timeout=60)
-    child.close()
-
-    assert child.exitstatus == 0, f"Detached seal failed:\n{child.before}"
-
-    sealed_file = e2e_workdir / "e2e-detached-secret.yaml"
-    assert sealed_file.exists(), "Detached sealed secret file was not created"
-
-    content = yaml.safe_load(sealed_file.read_text())
-    assert content["kind"] == "SealedSecret"
-    assert content["metadata"]["name"] == "e2e-detached-secret"
-    assert "token" in content["spec"]["encryptedData"]
 
 
 @pytest.mark.e2e
-def test_04_edit_secret(
+def test_04_create_tls_connected(
+    e2e_workdir: Path,
+    spawn_env: dict[str, str],
+) -> None:
+    """Create and seal a TLS secret in connected mode."""
+    # TLS creation expects tls.key and tls.crt in the working directory
+    key_file = e2e_workdir / "tls.key"
+    cert_file = e2e_workdir / "tls.crt"
+
+    # Generate a self-signed certificate for testing
+    import subprocess
+
+    subprocess.run(
+        [
+            "openssl",
+            "req",
+            "-x509",
+            "-newkey",
+            "rsa:2048",
+            "-keyout",
+            str(key_file),
+            "-out",
+            str(cert_file),
+            "-days",
+            "1",
+            "-nodes",
+            "-subj",
+            "/CN=e2e-test",
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+    child = _spawn([], cwd=str(e2e_workdir), env=spawn_env)
+
+    # TLS is the 2nd option (1 down)
+    _fill_secret_params(child, namespace="default", secret_type_downs=1, name="e2e-tls-secret")
+    # No entry prompts for TLS — it reads tls.key and tls.crt automatically
+
+    _finish(child, label="Connected TLS seal")
+
+    _assert_sealed_secret(
+        e2e_workdir / "e2e-tls-secret.yaml",
+        name="e2e-tls-secret",
+        expected_keys=["tls.crt", "tls.key"],
+    )
+
+
+@pytest.mark.e2e
+def test_05_create_regcred_connected(
+    e2e_workdir: Path,
+    spawn_env: dict[str, str],
+) -> None:
+    """Create and seal a docker-registry secret in connected mode."""
+    child = _spawn([], cwd=str(e2e_workdir), env=spawn_env)
+
+    # docker-registry is the 3rd option (2 downs)
+    _fill_secret_params(child, namespace="default", secret_type_downs=2, name="e2e-regcred-secret")
+
+    # Docker credentials prompts
+    child.expect("docker-server", timeout=10)
+    child.sendline("ghcr.io")
+
+    child.expect("docker-username", timeout=10)
+    child.sendline("testuser")
+
+    child.expect("docker-password", timeout=10)
+    child.sendline("testpass")
+
+    _finish(child, label="Connected docker-registry seal")
+
+    _assert_sealed_secret(
+        e2e_workdir / "e2e-regcred-secret.yaml",
+        name="e2e-regcred-secret",
+        expected_keys=[".dockerconfigjson"],
+    )
+
+
+@pytest.mark.e2e
+def test_06_edit_secret(
     e2e_workdir: Path,
     spawn_env: dict[str, str],
 ) -> None:
@@ -168,48 +256,44 @@ def test_04_edit_secret(
     sealed_file = e2e_workdir / "e2e-test-secret.yaml"
     assert sealed_file.exists(), "Sealed secret from test_02 not found — tests must run in order"
 
-    child = pexpect.spawn(
-        "kubeseal-auto",
-        ["--edit", str(sealed_file)],
-        cwd=str(e2e_workdir),
-        env=spawn_env,
-        timeout=60,
-    )
+    child = _spawn(["--edit", str(sealed_file)], cwd=str(e2e_workdir), env=spawn_env)
 
     # Edit flow only prompts for entries (name/namespace come from the file)
-    # 1. Entry type — "Literal" is first
-    child.expect("[Aa]dd secret entry", timeout=30)
-    child.sendline("")
+    _add_literal_then_done(child, "password=secret123")
 
-    # 2. Key=value
-    child.expect("key=value", timeout=10)
-    child.sendline("password=secret123")
+    _finish(child, label="Edit secret")
 
-    # 3. Done (3 downs)
-    child.expect("[Aa]dd secret entry", timeout=10)
-    child.send(_DOWN)
-    child.send(_DOWN)
-    child.send(_DOWN)
-    child.sendline("")
-
-    child.expect(pexpect.EOF, timeout=60)
-    child.close()
-
-    assert child.exitstatus == 0, f"Edit failed:\n{child.before}"
-
-    content = yaml.safe_load(sealed_file.read_text())
-    assert content["kind"] == "SealedSecret"
-    assert "username" in content["spec"]["encryptedData"]
-    assert "password" in content["spec"]["encryptedData"]
+    _assert_sealed_secret(
+        sealed_file,
+        name="e2e-test-secret",
+        expected_keys=["username", "password"],
+    )
 
 
 @pytest.mark.e2e
-def test_05_reencrypt(
+def test_07_backup(
+    e2e_workdir: Path,
+    kind_context: str,
+    spawn_env: dict[str, str],
+) -> None:
+    """Backup the controller's encryption secret."""
+    child = _spawn(["--backup"], cwd=str(e2e_workdir), env=spawn_env)
+    _finish(child, label="kubeseal-auto --backup")
+
+    backup_file = e2e_workdir / f"{kind_context}-secret-backup.yaml"
+    assert backup_file.exists(), "Backup file was not created"
+
+    content = yaml.safe_load(backup_file.read_text())
+    assert content["kind"] == "Secret"
+    assert content["type"] == "kubernetes.io/tls"
+
+
+@pytest.mark.e2e
+def test_08_reencrypt(
     e2e_workdir: Path,
     spawn_env: dict[str, str],
 ) -> None:
     """Re-encrypt all sealed secrets in the working directory."""
-    # Collect sealed secret files before re-encryption for comparison
     sealed_files = list(e2e_workdir.glob("*.yaml"))
     assert sealed_files, "No sealed secret files found — earlier tests must run first"
 
@@ -221,17 +305,8 @@ def test_05_reencrypt(
 
     assert original_data, "No valid SealedSecret files found in workdir"
 
-    child = pexpect.spawn(
-        "kubeseal-auto",
-        ["--re-encrypt", str(e2e_workdir)],
-        cwd=str(e2e_workdir),
-        env=spawn_env,
-        timeout=120,
-    )
-    child.expect(pexpect.EOF)
-    child.close()
-
-    assert child.exitstatus == 0, f"Re-encrypt failed:\n{child.before}"
+    child = _spawn(["--re-encrypt", str(e2e_workdir)], cwd=str(e2e_workdir), env=spawn_env, timeout=120)
+    _finish(child, label="Re-encrypt", timeout=120)
 
     # Verify files are still valid SealedSecrets with the same keys
     for filename, old_encrypted in original_data.items():
