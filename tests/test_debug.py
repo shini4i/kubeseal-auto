@@ -1,11 +1,13 @@
 """Tests for debug.py module."""
 
+import inspect
 import logging
 from collections.abc import Iterator
+from unittest.mock import patch
 
 import pytest
 
-from kubeseal_auto.debug import configure_debug, ic, logger
+from kubeseal_auto.debug import _get_call_expression, configure_debug, ic, logger
 
 
 @pytest.fixture(autouse=True)
@@ -107,3 +109,21 @@ class TestIcFunction:
         assert ic(42) == 42
         assert ic("a", "b") == ("a", "b")
         assert ic() is None
+
+
+class TestGetCallExpression:
+    """Tests for _get_call_expression fallback branches."""
+
+    def test_returns_none_when_source_lookup_raises(self):
+        """Test fallback to None when inspect.getsourcelines raises OSError."""
+        with patch.object(inspect, "getsourcelines", side_effect=OSError("no source")):
+            result = _get_call_expression()
+
+        assert result is None
+
+    def test_returns_none_when_frame_is_none(self):
+        """Test fallback to None when currentframe() returns None."""
+        with patch.object(inspect, "currentframe", return_value=None):
+            result = _get_call_expression()
+
+        assert result is None

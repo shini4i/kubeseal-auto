@@ -19,26 +19,33 @@ _IC_CALL_PATTERN = re.compile(r"\bic\((.+?)\)\s*$")
 def _get_call_expression() -> str | None:
     """Extract the ic() argument expression from the calling source line.
 
+    Frame references are explicitly deleted to avoid reference cycles
+    that would delay garbage collection (see :func:`inspect.currentframe`
+    documentation).
+
     Returns:
         The argument expression string, or None if it cannot be determined.
 
     """
     frame = inspect.currentframe()
-    if frame is None or frame.f_back is None or frame.f_back.f_back is None:
-        return None
-
-    caller = frame.f_back.f_back
     try:
-        source_lines, start_line = inspect.getsourcelines(caller)
-        line_index = caller.f_lineno - start_line
-        if 0 <= line_index < len(source_lines):
-            line = textwrap.dedent(source_lines[line_index]).strip()
-            match = _IC_CALL_PATTERN.search(line)
-            if match:
-                return match.group(1)
-    except (OSError, TypeError):
-        pass
-    return None
+        if frame is None or frame.f_back is None or frame.f_back.f_back is None:
+            return None
+
+        caller = frame.f_back.f_back
+        try:
+            source_lines, start_line = inspect.getsourcelines(caller)
+            line_index = caller.f_lineno - start_line
+            if 0 <= line_index < len(source_lines):
+                line = textwrap.dedent(source_lines[line_index]).strip()
+                match = _IC_CALL_PATTERN.search(line)
+                if match:
+                    return match.group(1)
+        except (OSError, TypeError):
+            pass
+        return None
+    finally:
+        del frame
 
 
 def ic(*args: object) -> object:
@@ -63,9 +70,12 @@ def ic(*args: object) -> object:
         # Bare ic() call — log the call location
         if logger.isEnabledFor(logging.DEBUG):
             frame = inspect.currentframe()
-            if frame and frame.f_back:
-                caller = frame.f_back
-                logger.debug("ic| %s:%d", caller.f_code.co_filename, caller.f_lineno)
+            try:
+                if frame and frame.f_back:
+                    caller = frame.f_back
+                    logger.debug("ic| %s:%d", caller.f_code.co_filename, caller.f_lineno)
+            finally:
+                del frame
         return None
 
     if logger.isEnabledFor(logging.DEBUG):
