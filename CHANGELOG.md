@@ -10,8 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `debug.py` module replaces `icecream` runtime dependency, providing identical `--debug` flag UX via Python's built-in `logging`.
 
+### Security
+
+- Bumped `urllib3` to `2.7.0`, resolving six open transitive Dependabot advisories (CVE-2026-44431, CVE-2026-21441, CVE-2025-66471, CVE-2025-66418, CVE-2025-50182, CVE-2025-50181). The `kubernetes` 34.x client capped `urllib3<2.4.0`, pinning us to a vulnerable version; bumping the client to 36.x lifts that cap.
+
 ### Changed
 
+- **Dependencies**: Raised the `kubernetes` client requirement to `>=36.0.1` (was `>=31,<35`). The `36.0.0` release shipped an auth regression where `load_kube_config()`/`load_incluster_config()` with a static token sent unauthenticated requests, so the floor is `36.0.1`. The previous upper bound was dropped — only stable core endpoints (`CoreV1Api` list calls, kube-config loaders) are used.
 - Temp file cleanup now registers an `atexit` handler in addition to the context manager, covering non-context-manager usage paths.
 - **Build Tooling**: Migrated dependency management and packaging from Poetry to `uv` (PEP 621 metadata, `uv.lock`, `uv_build` backend). The Nix package now builds via `uv2nix` instead of `poetry2nix`, and the `Makefile` was replaced with a `Taskfile`.
 
