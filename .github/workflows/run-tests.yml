@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
 
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
@@ -28,7 +28,7 @@ jobs:
         run: uv run pytest --cov=src --cov-report=xml
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@aa56896cf108bd10b5eb883cd1d24196da57f695 # v5.5.4
+        uses: codecov/codecov-action@e53489f4d376d79066609109e7a95a29eb3740b1 # v7.0.0
         with:
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
