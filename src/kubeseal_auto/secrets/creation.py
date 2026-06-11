@@ -4,7 +4,7 @@ This module provides functions for creating different types of
 Kubernetes secrets (generic, TLS, docker-registry).
 """
 
-import subprocess
+import subprocess  # nosec B404 - subprocess wraps kubectl (the tool's purpose); calls pass argv lists, never shell=True
 from pathlib import Path
 
 import click
@@ -20,7 +20,7 @@ _DRY_RUN_CLIENT = "--dry-run=client"
 # Error message constants
 _ERR_KUBECTL_NOT_FOUND = "kubectl not found; please install kubectl and ensure it's on PATH"
 _ERR_OUTPUT_PATH = "Cannot write to output path '{path}': {reason}"
-_ERR_SECRET_CREATION = "Failed to create {secret_type} secret (exit code {code}){details}"
+_ERR_SECRET_CREATION = "Failed to create {secret_type} secret (exit code {code}){details}"  # nosec B105 - error-message template, not a credential (flagged only because the name contains "SECRET")
 
 
 def _run_kubectl_write_output(
@@ -52,7 +52,7 @@ def _run_kubectl_write_output(
 
     with f:
         try:
-            subprocess.run(
+            subprocess.run(  # nosec B603 - fixed kubectl argv list, no shell, no untrusted command input
                 cmd,
                 input=input_data,
                 stdout=f,

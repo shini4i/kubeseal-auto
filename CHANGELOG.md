@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **CI security scanning** (`security.yml`): bandit (Python SAST), Trivy (dependency CVEs against `uv.lock`), and TruffleHog (secret scanning), running on pull requests and pushes to `main`.
+- **Workflow audit** (`zizmor.yml`): zizmor GitHub Actions audit, scoped via path filter to run only when `.github/workflows/**` changes.
+- Pre-commit hooks for bandit and TruffleHog, so Python security issues and secrets are caught locally before a commit reaches CI.
+- `bandit` added to the dev dependency group; `zizmor`, `trivy`, and `trufflehog` added to the Nix devshell.
+
+### Security
+
+- Hardened existing workflows: per-job least-privilege `permissions` on `run-tests.yml`/`e2e.yml` and `persist-credentials: false` on all `actions/checkout` steps, limiting the blast radius of a compromised action.
+- Documented `# nosec` annotations on the `kubeseal`/`kubectl` `subprocess` calls (fixed argv lists, no shell), keeping bandit fail-closed on any future subprocess usage.
+
 ## [0.7.1] - 2026-06-11
 
 ### Added

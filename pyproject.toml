@@ -32,6 +32,7 @@ dev = [
     "types-PyYAML>=6.0,<7",
     "types-requests>=2.31,<3",
     "pexpect>=4.9,<5",
+    "bandit>=1.9.4,<2",
 ]
 
 [build-system]

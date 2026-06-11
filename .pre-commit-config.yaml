@@ -22,3 +22,22 @@ repos:
           - types-PyYAML
           - types-requests
         args: [--ignore-missing-imports]
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.9.4
+    hooks:
+      - id: bandit
+        # Application code only; tests legitimately use asserts (B101).
+        files: ^src/
+
+  # Secret scanning runs locally before a commit lands, so credentials never
+  # reach a commit or CI. filesystem mode scans the staged files pre-commit
+  # passes in (so no .venv/vendored false positives, and the about-to-be-
+  # committed content is actually scanned). Uses the trufflehog binary from
+  # the flake devshell (language: system), not the upstream hook's Go build.
+  - repo: local
+    hooks:
+      - id: trufflehog
+        name: TruffleHog secret scan
+        entry: trufflehog filesystem --results=verified,unknown --fail --no-update
+        language: system

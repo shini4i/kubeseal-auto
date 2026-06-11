@@ -10,8 +10,11 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          persist-credentials: false
 
       - name: Install uv
+        # zizmor: ignore[cache-poisoning] tag-triggered publish; poisoning the restored cache needs push access to main (already trusted) and the wheel is built from repo src, not the cache
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           python-version: '3.12'
@@ -29,8 +32,11 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          persist-credentials: false
 
       - name: Install uv
+        # zizmor: ignore[cache-poisoning] tag-triggered publish; poisoning the restored cache needs push access to main (already trusted) and the wheel is built from repo src, not the cache
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           python-version: '3.12'
@@ -50,6 +56,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          persist-credentials: false
 
       - name: Extract changelog section
         run: |
@@ -84,7 +92,7 @@ jobs:
         uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31.10.6
 
       - name: Update nixpkgs package
-        uses: shini4i/nixpkgs-updater@v1
+        uses: shini4i/nixpkgs-updater@v1 # zizmor: ignore[unpinned-uses] first-party shini4i action; policy permits semver tags
         with:
           package-name: kubeseal-auto
           version: ${{ github.ref_name }}
