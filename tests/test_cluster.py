@@ -14,7 +14,7 @@ from kubeseal_auto.models import ControllerInfo
 class TestClusterContextSelection:
     """Tests for context selection functionality."""
 
-    def test_set_context_without_selection(self, mock_kube_contexts, mock_kube_config):
+    def test_set_context_without_selection(self, mock_kube_contexts: MagicMock, mock_kube_config: MagicMock) -> None:
         """Test using current context without selection."""
         with (
             patch.object(Cluster, "_find_sealed_secrets_controller") as mock_controller,
@@ -30,7 +30,7 @@ class TestClusterContextSelection:
 
             assert cluster.context == "test-context"
 
-    def test_set_context_with_selection(self, mock_kube_config):
+    def test_set_context_with_selection(self, mock_kube_config: MagicMock) -> None:
         """Test prompting user for context selection."""
         with (
             patch("kubernetes.config.list_kube_config_contexts") as mock_contexts,
@@ -54,7 +54,7 @@ class TestClusterContextSelection:
             assert cluster.context == "context2"
             mock_select.assert_called_once()
 
-    def test_set_context_invalid_kubeconfig(self):
+    def test_set_context_invalid_kubeconfig(self) -> None:
         """Test error when kubeconfig is invalid or missing."""
         with patch("kubernetes.config.list_kube_config_contexts") as mock_contexts:
             mock_contexts.side_effect = ConfigException("Invalid kube-config file. No configuration found.")
@@ -68,7 +68,7 @@ class TestClusterContextSelection:
 class TestClusterControllerDiscovery:
     """Tests for SealedSecrets controller discovery."""
 
-    def test_find_controller_success(self, mock_kube_contexts, mock_kube_config):
+    def test_find_controller_success(self, mock_kube_contexts: MagicMock, mock_kube_config: MagicMock) -> None:
         """Test successfully finding a controller."""
         with patch("kubernetes.client.CoreV1Api") as mock_api:
             api_instance = MagicMock()
@@ -88,7 +88,7 @@ class TestClusterControllerDiscovery:
             assert cluster.controller.namespace == "kube-system"
             assert cluster.controller.version == "v0.26.0"
 
-    def test_find_controller_not_found(self, mock_kube_contexts, mock_kube_config):
+    def test_find_controller_not_found(self, mock_kube_contexts: MagicMock, mock_kube_config: MagicMock) -> None:
         """Test error when controller is not found."""
         with patch("kubernetes.client.CoreV1Api") as mock_api:
             api_instance = MagicMock()
@@ -100,7 +100,7 @@ class TestClusterControllerDiscovery:
 
             assert "not found" in str(exc_info.value)
 
-    def test_find_controller_filters_metrics(self, mock_kube_contexts, mock_kube_config):
+    def test_find_controller_filters_metrics(self, mock_kube_contexts: MagicMock, mock_kube_config: MagicMock) -> None:
         """Test that metrics services are filtered out."""
         with patch("kubernetes.client.CoreV1Api") as mock_api:
             api_instance = MagicMock()
@@ -125,7 +125,7 @@ class TestClusterControllerDiscovery:
             # Should select the controller, not the metrics service
             assert cluster.controller.name == "sealed-secrets-controller"
 
-    def test_find_controller_connection_error(self, mock_kube_contexts, mock_kube_config):
+    def test_find_controller_connection_error(self, mock_kube_contexts: MagicMock, mock_kube_config: MagicMock) -> None:
         """Test error when cluster is unreachable."""
         with patch("kubernetes.client.CoreV1Api") as mock_api:
             api_instance = MagicMock()
@@ -133,9 +133,10 @@ class TestClusterControllerDiscovery:
 
             # Simulate connection error
             connection_error = NewConnectionError(
-                None, "Failed to establish a new connection: [Errno 111] Connection refused"
+                None,  # type: ignore[arg-type]
+                "Failed to establish a new connection: [Errno 111] Connection refused",
             )
-            max_retry_error = MaxRetryError(pool=None, url="/api/v1/services", reason=connection_error)
+            max_retry_error = MaxRetryError(pool=None, url="/api/v1/services", reason=connection_error)  # type: ignore[arg-type]
             api_instance.list_service_for_all_namespaces.side_effect = max_retry_error
 
             with pytest.raises(ClusterConnectionError) as exc_info:
@@ -147,7 +148,7 @@ class TestClusterControllerDiscovery:
 class TestClusterNamespaces:
     """Tests for namespace operations."""
 
-    def test_get_all_namespaces(self, mock_kube_contexts, mock_kube_config, mock_controller):
+    def test_get_all_namespaces(self, mock_kube_contexts: MagicMock, mock_kube_config: MagicMock, mock_controller: MagicMock) -> None:
         """Test retrieving all namespaces."""
         with patch("kubernetes.client.CoreV1Api") as mock_api:
             api_instance = MagicMock()
@@ -173,23 +174,23 @@ class TestClusterNamespaces:
 class TestClusterProperties:
     """Tests for property accessors."""
 
-    def test_controller_name(self, mock_kube_contexts, mock_kube_config, mock_controller, mock_namespaces):
+    def test_controller_name(self, mock_kube_contexts: MagicMock, mock_kube_config: MagicMock, mock_controller: MagicMock, mock_namespaces: MagicMock) -> None:
         """Test controller_name property."""
         cluster = Cluster(select_context=False)
         assert cluster.controller_name == "sealed-secrets-controller"
 
-    def test_controller_namespace(self, mock_kube_contexts, mock_kube_config, mock_controller, mock_namespaces):
+    def test_controller_namespace(self, mock_kube_contexts: MagicMock, mock_kube_config: MagicMock, mock_controller: MagicMock, mock_namespaces: MagicMock) -> None:
         """Test controller_namespace property."""
         cluster = Cluster(select_context=False)
         assert cluster.controller_namespace == "kube-system"
 
-    def test_controller_version(self, mock_kube_contexts, mock_kube_config, mock_controller, mock_namespaces):
+    def test_controller_version(self, mock_kube_contexts: MagicMock, mock_kube_config: MagicMock, mock_controller: MagicMock, mock_namespaces: MagicMock) -> None:
         """Test controller_version property."""
         cluster = Cluster(select_context=False)
         # Version is "v0.26.0", normalize_version removes "v" prefix
         assert cluster.controller_version == "0.26.0"
 
-    def test_controller_version_empty(self, mock_kube_contexts, mock_kube_config, mock_namespaces):
+    def test_controller_version_empty(self, mock_kube_contexts: MagicMock, mock_kube_config: MagicMock, mock_namespaces: MagicMock) -> None:
         """Test controller_version returns empty string when version label is missing."""
         with patch.object(Cluster, "_find_sealed_secrets_controller") as mock_find:
             mock_find.return_value = ControllerInfo(
@@ -200,7 +201,7 @@ class TestClusterProperties:
             cluster = Cluster(select_context=False)
             assert cluster.controller_version == ""
 
-    def test_context_attribute(self, mock_kube_contexts, mock_kube_config, mock_controller, mock_namespaces):
+    def test_context_attribute(self, mock_kube_contexts: MagicMock, mock_kube_config: MagicMock, mock_controller: MagicMock, mock_namespaces: MagicMock) -> None:
         """Test context attribute access."""
         cluster = Cluster(select_context=False)
         assert cluster.context == "test-context"
@@ -209,7 +210,7 @@ class TestClusterProperties:
 class TestClusterCertificateDiscovery:
     """Tests for certificate discovery."""
 
-    def test_find_latest_certificate(self, mock_kube_contexts, mock_kube_config, mock_controller, mock_namespaces):
+    def test_find_latest_certificate(self, mock_kube_contexts: MagicMock, mock_kube_config: MagicMock, mock_controller: MagicMock, mock_namespaces: MagicMock) -> None:
         """Test finding the latest controller certificate."""
         cluster = Cluster(select_context=False)
 

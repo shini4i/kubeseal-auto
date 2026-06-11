@@ -21,7 +21,7 @@ from kubeseal_auto.secrets.sealing import (
 class TestSealSecret:
     """Tests for seal_secret function."""
 
-    def test_seal_secret_success(self, tmp_path):
+    def test_seal_secret_success(self, tmp_path: Path) -> None:
         """Test successful secret sealing."""
         temp_file = tmp_path / "temp_secret.yaml"
         temp_file.write_text("apiVersion: v1\nkind: Secret\n")
@@ -47,7 +47,7 @@ class TestSealSecret:
 
             mock_run.assert_called_once()
 
-    def test_seal_secret_raises_on_failure(self, tmp_path):
+    def test_seal_secret_raises_on_failure(self, tmp_path: Path) -> None:
         """Test that seal_secret raises ClickException on subprocess failure."""
         temp_file = tmp_path / "temp_secret.yaml"
         temp_file.write_text("apiVersion: v1\nkind: Secret\n")
@@ -77,7 +77,7 @@ class TestSealSecret:
 class TestMergeSecret:
     """Tests for merge_secret function."""
 
-    def test_merge_secret_success(self, tmp_path):
+    def test_merge_secret_success(self, tmp_path: Path) -> None:
         """Test successful secret merging."""
         temp_file = tmp_path / "temp_secret.yaml"
         temp_file.write_text("apiVersion: v1\nkind: Secret\n")
@@ -101,7 +101,7 @@ class TestMergeSecret:
             assert "--merge-into" in cmd
             assert "existing-secret.yaml" in cmd
 
-    def test_merge_secret_failure(self, tmp_path):
+    def test_merge_secret_failure(self, tmp_path: Path) -> None:
         """Test error handling when merge fails."""
         temp_file = tmp_path / "temp_secret.yaml"
         temp_file.write_text("apiVersion: v1\nkind: Secret\n")
@@ -125,7 +125,7 @@ class TestMergeSecret:
 class TestReencryptSecrets:
     """Tests for reencrypt_secrets function."""
 
-    def test_reencrypt_no_secrets_found(self, tmp_path):
+    def test_reencrypt_no_secrets_found(self, tmp_path: Path) -> None:
         """Test warning when no SealedSecrets are found and no subprocess is spawned."""
         with (
             patch("kubeseal_auto.secrets.sealing._find_sealed_secrets", return_value=[]),
@@ -134,7 +134,7 @@ class TestReencryptSecrets:
             reencrypt_secrets(src=str(tmp_path), kubeseal_cmd=["kubeseal"])
             mock_run.assert_not_called()
 
-    def test_reencrypt_success(self, tmp_path):
+    def test_reencrypt_success(self, tmp_path: Path) -> None:
         """Test successful re-encryption of secrets."""
         secret_file = tmp_path / "secret.yaml"
         secret_file.write_text("apiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\n")
@@ -153,7 +153,7 @@ class TestReencryptSecrets:
 
             mock_run.assert_called_once()
 
-    def test_reencrypt_failure_restores_backup(self, tmp_path):
+    def test_reencrypt_failure_restores_backup(self, tmp_path: Path) -> None:
         """Test that original file is restored from backup on failure."""
         secret_file = tmp_path / "secret.yaml"
         original_content = "apiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\noriginal: true\n"
@@ -180,7 +180,7 @@ class TestReencryptSecrets:
 class TestFetchCertificate:
     """Tests for fetch_certificate function."""
 
-    def test_fetch_certificate_success(self):
+    def test_fetch_certificate_success(self) -> None:
         """Test successful certificate fetch."""
         with (
             patch("subprocess.run") as mock_run,
@@ -199,7 +199,7 @@ class TestFetchCertificate:
             call_args = mock_run.call_args[0][0]
             assert "--fetch-cert" in call_args
 
-    def test_fetch_certificate_failure(self):
+    def test_fetch_certificate_failure(self) -> None:
         """Test error handling when certificate fetch fails."""
         with (
             patch("subprocess.run") as mock_run,
@@ -221,7 +221,7 @@ class TestFetchCertificate:
 class TestBackupControllerSecret:
     """Tests for backup_controller_secret function."""
 
-    def test_backup_success(self):
+    def test_backup_success(self) -> None:
         """Test successful backup of controller secret."""
         with (
             patch("subprocess.run") as mock_run,
@@ -237,7 +237,7 @@ class TestBackupControllerSecret:
 
             mock_run.assert_called_once()
 
-    def test_backup_failure(self):
+    def test_backup_failure(self) -> None:
         """Test error handling when backup fails."""
         with (
             patch("subprocess.run") as mock_run,
@@ -258,7 +258,7 @@ class TestBackupControllerSecret:
 class TestFindSealedSecrets:
     """Tests for _find_sealed_secrets function."""
 
-    def test_find_sealed_secrets(self, tmp_path):
+    def test_find_sealed_secrets(self, tmp_path: Path) -> None:
         """Test finding SealedSecret files in a directory."""
         sealed = tmp_path / "sealed.yaml"
         sealed.write_text("apiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: test\n")
@@ -274,7 +274,7 @@ class TestFindSealedSecrets:
         assert len(result) == 1
         assert result[0].name == "sealed.yaml"
 
-    def test_find_sealed_secrets_empty_directory(self, tmp_path):
+    def test_find_sealed_secrets_empty_directory(self, tmp_path: Path) -> None:
         """Test with empty directory."""
         result = _find_sealed_secrets(str(tmp_path))
         assert result == []

@@ -8,13 +8,13 @@ from typing import Any
 
 import click
 import questionary
-from kubeseal_auto.debug import ic
 from kubernetes import client, config
 from kubernetes.config.config_exception import ConfigException
 from urllib3.exceptions import MaxRetryError
 
 from kubeseal_auto import console
 from kubeseal_auto.core.host import Host, normalize_version
+from kubeseal_auto.debug import ic
 from kubeseal_auto.exceptions import ClusterConnectionError, ControllerNotFoundError
 from kubeseal_auto.models import ControllerInfo
 from kubeseal_auto.styles import POINTER, PROMPT_STYLE, QMARK

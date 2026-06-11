@@ -1,5 +1,6 @@
 """Shared test fixtures for kubeseal-auto tests."""
 
+from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,7 +9,7 @@ from kubeseal_auto.models import ControllerInfo
 
 
 @pytest.fixture
-def mock_kube_contexts():
+def mock_kube_contexts() -> Iterator[MagicMock]:
     """Mock kubernetes config contexts."""
     with patch("kubernetes.config.list_kube_config_contexts") as mock:
         mock.return_value = ([{"name": "test-context"}], {"name": "test-context"})
@@ -16,14 +17,14 @@ def mock_kube_contexts():
 
 
 @pytest.fixture
-def mock_kube_config():
+def mock_kube_config() -> Iterator[MagicMock]:
     """Mock kubernetes config loading."""
     with patch("kubernetes.config.load_kube_config") as mock:
         yield mock
 
 
 @pytest.fixture
-def mock_controller():
+def mock_controller() -> Iterator[MagicMock]:
     """Mock SealedSecrets controller discovery."""
     with patch("kubeseal_auto.core.cluster.Cluster._find_sealed_secrets_controller") as mock:
         mock.return_value = ControllerInfo(
@@ -35,7 +36,7 @@ def mock_controller():
 
 
 @pytest.fixture
-def mock_namespaces():
+def mock_namespaces() -> Iterator[MagicMock]:
     """Mock namespace listing."""
     with patch("kubeseal_auto.core.cluster.Cluster.get_all_namespaces") as mock:
         mock.return_value = ["default", "kube-system", "monitoring"]
@@ -43,7 +44,7 @@ def mock_namespaces():
 
 
 @pytest.fixture
-def mock_core_v1_api():
+def mock_core_v1_api() -> Iterator[MagicMock]:
     """Mock CoreV1Api for namespace listing."""
     with patch("kubernetes.client.CoreV1Api") as mock:
         api_instance = MagicMock()
@@ -59,7 +60,7 @@ def mock_core_v1_api():
 
 
 @pytest.fixture
-def mock_subprocess():
+def mock_subprocess() -> Iterator[MagicMock]:
     """Mock subprocess.run for command execution."""
     with patch("subprocess.run") as mock:
         mock.return_value = MagicMock(returncode=0, stdout="", stderr="")
@@ -67,7 +68,7 @@ def mock_subprocess():
 
 
 @pytest.fixture
-def mock_host_binary():
+def mock_host_binary() -> Iterator[MagicMock]:
     """Mock Host class to skip binary download."""
     with patch("kubeseal_auto.core.cluster.Host") as mock:
         host_instance = MagicMock()
@@ -76,14 +77,20 @@ def mock_host_binary():
 
 
 @pytest.fixture
-def mock_host_ensure_binary():
+def mock_host_ensure_binary() -> Iterator[MagicMock]:
     """Mock Host.ensure_kubeseal_binary to skip download."""
     with patch("kubeseal_auto.core.host.Host.ensure_kubeseal_binary") as mock:
         yield mock
 
 
 @pytest.fixture
-def kubeseal_mocks(mock_kube_contexts, mock_kube_config, mock_controller, mock_namespaces, mock_host_ensure_binary):
+def kubeseal_mocks(
+    mock_kube_contexts: MagicMock,
+    mock_kube_config: MagicMock,
+    mock_controller: MagicMock,
+    mock_namespaces: MagicMock,
+    mock_host_ensure_binary: MagicMock,
+) -> dict[str, MagicMock]:
     """Combined fixture for creating a Kubeseal instance without cluster access.
 
     Note: This fixture is used for its side effects (setting up mocks).
@@ -99,7 +106,12 @@ def kubeseal_mocks(mock_kube_contexts, mock_kube_config, mock_controller, mock_n
 
 
 @pytest.fixture
-def cluster_mocks(mock_kube_contexts, mock_kube_config, mock_core_v1_api, mock_host_binary):
+def cluster_mocks(
+    mock_kube_contexts: MagicMock,
+    mock_kube_config: MagicMock,
+    mock_core_v1_api: MagicMock,
+    mock_host_binary: MagicMock,
+) -> dict[str, MagicMock]:
     """Combined fixture for creating a Cluster instance."""
     return {
         "contexts": mock_kube_contexts,
@@ -110,7 +122,7 @@ def cluster_mocks(mock_kube_contexts, mock_kube_config, mock_core_v1_api, mock_h
 
 
 @pytest.fixture
-def sample_secret_yaml():
+def sample_secret_yaml() -> str:
     """Sample secret YAML content."""
     return """apiVersion: v1
 kind: Secret
@@ -125,7 +137,7 @@ data:
 
 
 @pytest.fixture
-def sample_sealed_secret_yaml():
+def sample_sealed_secret_yaml() -> str:
     """Sample sealed secret YAML content."""
     return """apiVersion: bitnami.com/v1alpha1
 kind: SealedSecret

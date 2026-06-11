@@ -8,7 +8,7 @@ from kubeseal_auto import console
 class TestConsoleOutput:
     """Tests for console output functions."""
 
-    def test_info_message(self):
+    def test_info_message(self) -> None:
         """Test info message format."""
         with patch.object(console.console, "print") as mock_print:
             console.info("Test message")
@@ -17,7 +17,7 @@ class TestConsoleOutput:
             assert "ℹ" in call_arg
             assert "Test message" in call_arg
 
-    def test_success_message(self):
+    def test_success_message(self) -> None:
         """Test success message format."""
         with patch.object(console.console, "print") as mock_print:
             console.success("Operation complete")
@@ -26,7 +26,7 @@ class TestConsoleOutput:
             assert "✓" in call_arg
             assert "Operation complete" in call_arg
 
-    def test_warning_message(self):
+    def test_warning_message(self) -> None:
         """Test warning message format."""
         with patch.object(console.console, "print") as mock_print:
             console.warning("Be careful")
@@ -35,7 +35,7 @@ class TestConsoleOutput:
             assert "⚠" in call_arg
             assert "Be careful" in call_arg
 
-    def test_error_message(self):
+    def test_error_message(self) -> None:
         """Test error message format."""
         with patch.object(console.console, "print") as mock_print:
             console.error("Something failed")
@@ -44,7 +44,7 @@ class TestConsoleOutput:
             assert "✗" in call_arg
             assert "Something failed" in call_arg
 
-    def test_action_message(self):
+    def test_action_message(self) -> None:
         """Test action message format."""
         with patch.object(console.console, "print") as mock_print:
             console.action("Doing something")
@@ -53,7 +53,7 @@ class TestConsoleOutput:
             assert "→" in call_arg
             assert "Doing something" in call_arg
 
-    def test_step_message(self):
+    def test_step_message(self) -> None:
         """Test step message format."""
         with patch.object(console.console, "print") as mock_print:
             console.step("Sub-step here")
@@ -62,12 +62,12 @@ class TestConsoleOutput:
             assert "•" in call_arg
             assert "Sub-step here" in call_arg
 
-    def test_highlight_returns_markup(self):
+    def test_highlight_returns_markup(self) -> None:
         """Test highlight returns Rich markup."""
         result = console.highlight("important")
         assert result == "[highlight]important[/highlight]"
 
-    def test_newline(self):
+    def test_newline(self) -> None:
         """Test newline prints empty line."""
         with patch.object(console.console, "print") as mock_print:
             console.newline()
@@ -77,7 +77,7 @@ class TestConsoleOutput:
 class TestConsoleSpinner:
     """Tests for spinner context manager."""
 
-    def test_spinner_context_manager(self):
+    def test_spinner_context_manager(self) -> None:
         """Test spinner works as context manager."""
         with patch.object(console.console, "status") as mock_status:
             mock_status.return_value.__enter__ = lambda x: None
@@ -90,12 +90,12 @@ class TestConsoleSpinner:
 class TestConsoleProgress:
     """Tests for progress bar creation."""
 
-    def test_create_download_progress(self):
+    def test_create_download_progress(self) -> None:
         """Test download progress bar creation."""
         progress = console.create_download_progress()
         assert progress is not None
 
-    def test_create_task_progress(self):
+    def test_create_task_progress(self) -> None:
         """Test task progress bar creation."""
         progress = console.create_task_progress()
         assert progress is not None
@@ -104,7 +104,7 @@ class TestConsoleProgress:
 class TestConsoleSummaryPanel:
     """Tests for summary panel."""
 
-    def test_summary_panel(self):
+    def test_summary_panel(self) -> None:
         """Test summary panel renders."""
         with patch.object(console.console, "print") as mock_print:
             console.summary_panel("Test Summary", {"Key1": "Value1", "Key2": "Value2"})
