@@ -3,6 +3,8 @@ on:
   push:
     tags:
       - "v*.*.*"
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -38,3 +40,49 @@ jobs:
         run: uv publish --check-url https://pypi.org/simple/
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+
+      - name: Extract changelog section
+        run: |
+          # Pull only this version's section from CHANGELOG.md (between its
+          # "## [x.y.z]" header and the next "## [" header) into release-notes.md.
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="$version" '
+            $0 ~ "^## \\[" ver "\\]" { flag = 1; next }
+            flag && /^## \[/ { exit }
+            flag { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::No CHANGELOG.md section found for version ${version}"
+            exit 1
+          fi
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md
+
+  update-nixpkgs:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Nix
+        uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31.10.6
+
+      - name: Update nixpkgs package
+        uses: shini4i/nixpkgs-updater@v1
+        with:
+          package-name: kubeseal-auto
+          version: ${{ github.ref_name }}
+          target-repo: shini4i/nixpkgs
+          github-token: ${{ secrets.NIXPKGS_TOKEN }}
