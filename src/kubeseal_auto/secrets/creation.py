@@ -8,9 +8,9 @@ import subprocess
 from pathlib import Path
 
 import click
-from kubeseal_auto.debug import ic
 
 from kubeseal_auto import console
+from kubeseal_auto.debug import ic
 from kubeseal_auto.models import SecretParams
 from kubeseal_auto.secrets.prompts import collect_secret_entries, prompt_docker_credentials
 

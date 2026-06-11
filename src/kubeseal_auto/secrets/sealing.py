@@ -10,9 +10,9 @@ import subprocess
 from pathlib import Path
 
 import click
-from kubeseal_auto.debug import ic
 
 from kubeseal_auto import console
+from kubeseal_auto.debug import ic
 from kubeseal_auto.exceptions import SecretParsingError
 from kubeseal_auto.models import SecretParams
 from kubeseal_auto.secrets.parsing import append_argo_annotation, parse_secret_file

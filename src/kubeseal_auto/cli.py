@@ -11,8 +11,8 @@ import sys
 import click
 
 from kubeseal_auto import __version__, console
-from kubeseal_auto.debug import configure_debug, ic
 from kubeseal_auto.core.kubeseal import Kubeseal
+from kubeseal_auto.debug import configure_debug, ic
 from kubeseal_auto.exceptions import ClusterConnectionError, SecretParsingError
 from kubeseal_auto.models import SecretParams, SecretType
 
