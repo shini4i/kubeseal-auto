@@ -3,32 +3,70 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    poetry2nix = {
-      url = "github:nix-community/poetry2nix";
+
+    pyproject-nix = {
+      url = "github:pyproject-nix/pyproject.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    uv2nix = {
+      url = "github:pyproject-nix/uv2nix";
+      inputs.pyproject-nix.follows = "pyproject-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    pyproject-build-systems = {
+      url = "github:pyproject-nix/build-system-pkgs";
+      inputs.pyproject-nix.follows = "pyproject-nix";
+      inputs.uv2nix.follows = "uv2nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
-  outputs = { self, nixpkgs, poetry2nix }:
+  outputs = { self, nixpkgs, pyproject-nix, uv2nix, pyproject-build-systems }:
     let
       supportedSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       perSystem = nixpkgs.lib.genAttrs supportedSystems;
-      pkgsFor = system: import nixpkgs {
-        inherit system;
-        overlays = [ poetry2nix.overlays.default ];
-      };
+      pkgsFor = system: import nixpkgs { inherit system; };
+
+      # Load the uv workspace from uv.lock and build a pyproject.nix overlay.
+      # sourcePreference = "wheel" pulls prebuilt wheels, so none of the pure-Python
+      # dependencies need compilation or build overrides.
+      workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
+      overlay = workspace.mkPyprojectOverlay { sourcePreference = "wheel"; };
+
+      # Compose the Python package set: build-system bootstrap + the workspace overlay.
+      pythonSetFor = system:
+        let
+          pkgs = pkgsFor system;
+          python = pkgs.python312;
+        in
+        (pkgs.callPackage pyproject-nix.build.packages { inherit python; }).overrideScope (
+          nixpkgs.lib.composeManyExtensions [
+            pyproject-build-systems.overlays.default
+            overlay
+          ]
+        );
     in
     {
       packages = perSystem (system:
         let
           pkgs = pkgsFor system;
+          pythonSet = pythonSetFor system;
+          venv = pythonSet.mkVirtualEnv "kubeseal-auto-env" workspace.deps.default;
         in
         {
-          default = pkgs.poetry2nix.mkPoetryApplication {
-            projectDir = ./.;
-            python = pkgs.python312;
-            buildInputs = [ pkgs.kubectl ];
-          };
+          # kubeseal and kubectl are required at runtime; wrap them onto PATH.
+          default = pkgs.runCommand "kubeseal-auto"
+            {
+              nativeBuildInputs = [ pkgs.makeWrapper ];
+              meta.mainProgram = "kubeseal-auto";
+            }
+            ''
+              mkdir -p $out/bin
+              makeWrapper ${venv}/bin/kubeseal-auto $out/bin/kubeseal-auto \
+                --prefix PATH : ${nixpkgs.lib.makeBinPath [ pkgs.kubeseal pkgs.kubectl ]}
+            '';
         });
 
       devShells = perSystem (system:
@@ -39,17 +77,19 @@
           default = pkgs.mkShell {
             buildInputs = with pkgs; [
               python312
-              poetry
+              uv
               kubectl
               kubeseal
-              ruff
-              mypy
               bump2version
             ];
+            env = {
+              # Force uv to use the interpreter from this shell, not a downloaded one.
+              UV_PYTHON_DOWNLOADS = "never";
+              UV_PYTHON = "${pkgs.python312}/bin/python";
+            };
             shellHook = ''
-              export POETRY_VIRTUALENVS_IN_PROJECT=true
               echo "kubeseal-auto development environment"
-              echo "Run 'poetry install' to install dependencies"
+              echo "Run 'uv sync --group dev' to install dependencies"
               echo "Run 'pre-commit install' to set up git hooks"
             '';
           };

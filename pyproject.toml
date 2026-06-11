@@ -1,38 +1,46 @@
-[tool.poetry]
+[project]
 name = "kubeseal-auto"
 version = "0.7.0"
 description = "An interactive wrapper for kubeseal binary"
-authors = ["Vadim Gedz <github@shini4i.dev>"]
+authors = [{ name = "Vadim Gedz", email = "github@shini4i.dev" }]
 license = "MIT"
-
+license-files = ["LICENSE"]
 readme = "README.md"
-repository = "https://github.com/shini4i/kubeseal-auto"
+requires-python = ">=3.10"
+dependencies = [
+    "PyYAML>=6.0,<7",
+    "requests>=2.28.1,<3",
+    "kubernetes>=31,<35",
+    "click>=8.3.1,<9",
+    "questionary>=2.0.1,<3",
+    "rich>=14.0.0,<15",
+]
+
+[project.urls]
 homepage = "https://github.com/shini4i/kubeseal-auto"
+repository = "https://github.com/shini4i/kubeseal-auto"
 
-[tool.poetry.dependencies]
-python = "^3.10"
-PyYAML = "^6.0"
-requests = "^2.28.1"
-kubernetes = ">=31,<35"
-click = "^8.3.1"
-questionary = "^2.0.1"
-rich = "^14.0.0"
+[project.scripts]
+kubeseal-auto = "kubeseal_auto.cli:cli"
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^9.0.1"
-pytest-cov = "^7.0.0"
-ruff = "^0.14.8"
-mypy = "^1.13.0"
-types-PyYAML = "^6.0"
-types-requests = "^2.31"
-pexpect = "^4.9"
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1,<10",
+    "pytest-cov>=7.0.0,<8",
+    "ruff>=0.14.8,<0.15",
+    "mypy>=1.13.0,<2",
+    "types-PyYAML>=6.0,<7",
+    "types-requests>=2.31,<3",
+    "pexpect>=4.9,<5",
+]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
 
-[tool.poetry.scripts]
-kubeseal-auto = "kubeseal_auto.cli:cli"
+[tool.uv.build-backend]
+module-name = "kubeseal_auto"
+module-root = "src"
 
 [tool.ruff]
 target-version = "py310"

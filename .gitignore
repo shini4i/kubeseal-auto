@@ -1,6 +1,9 @@
 .idea/
 venv
+.venv/
 dist/
+result
+.direnv/
 **/__pycache__
 **/*.crt
 .coverage

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Temp file cleanup now registers an `atexit` handler in addition to the context manager, covering non-context-manager usage paths.
+- **Build Tooling**: Migrated dependency management and packaging from Poetry to `uv` (PEP 621 metadata, `uv.lock`, `uv_build` backend). The Nix package now builds via `uv2nix` instead of `poetry2nix`, and the `Makefile` was replaced with a `Taskfile`.
 
 ### Fixed
 

@@ -1,0 +1,43 @@
+version: '3'
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+    silent: true
+
+  install:
+    desc: Install dependencies (including dev group)
+    cmds:
+      - uv sync --group dev
+
+  run:
+    desc: Run the application with debug mode enabled
+    cmds:
+      - uv run kubeseal-auto --debug
+
+  test:
+    desc: Run the tests
+    cmds:
+      - uv run pytest
+
+  test-coverage:
+    desc: Run the tests with coverage
+    cmds:
+      - uv run pytest --cov=src --cov-report=term-missing --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
+
+  build:
+    desc: Build the sdist and wheel
+    cmds:
+      - uv build
+
+  bump-patch:
+    desc: Bump the patch version
+    cmds:
+      - bump2version patch --allow-dirty
+
+  bump-minor:
+    desc: Bump the minor version
+    cmds:
+      - bump2version minor --allow-dirty
