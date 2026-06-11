@@ -6,7 +6,7 @@ and backing up sealed secrets using the kubeseal binary.
 
 import contextlib
 import shutil
-import subprocess
+import subprocess  # nosec B404 - subprocess wraps the kubeseal/kubectl binaries; calls pass argv lists, never shell=True
 from pathlib import Path
 
 import click
@@ -66,7 +66,7 @@ def seal_secret(
     try:
         with console.spinner("Sealing secret with kubeseal..."):
             with open(temp_file_path, encoding="utf-8") as stdin_f, open(output_file, "w", encoding="utf-8") as stdout_f:
-                subprocess.run(kubeseal_cmd, stdin=stdin_f, stdout=stdout_f, stderr=subprocess.PIPE, check=True)
+                subprocess.run(kubeseal_cmd, stdin=stdin_f, stdout=stdout_f, stderr=subprocess.PIPE, check=True)  # nosec B603 - fixed kubeseal argv list, no shell, no untrusted command input
             append_argo_annotation(filename=output_file)
     except subprocess.CalledProcessError as err:
         # Clean up partial output file on failure
@@ -111,7 +111,7 @@ def merge_secret(
 
     try:
         with open(temp_file_path, encoding="utf-8") as stdin_f:
-            subprocess.run(cmd, stdin=stdin_f, stderr=subprocess.PIPE, check=True)
+            subprocess.run(cmd, stdin=stdin_f, stderr=subprocess.PIPE, check=True)  # nosec B603 - fixed kubeseal argv list, no shell, no untrusted command input
     except subprocess.CalledProcessError as err:
         stderr_msg = err.stderr.decode().strip() if err.stderr else ""
         error_details = f": {stderr_msg}" if stderr_msg else ""
@@ -149,7 +149,7 @@ def reencrypt_secrets(src: str, kubeseal_cmd: list[str]) -> None:
 
             try:
                 with secret.open(encoding="utf-8") as stdin_f, output_tmp.open("w", encoding="utf-8") as stdout_f:
-                    subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, stderr=subprocess.PIPE, check=True)
+                    subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, stderr=subprocess.PIPE, check=True)  # nosec B603 - fixed kubeseal argv list, no shell, no untrusted command input
                 # Atomic replace on success
                 output_tmp.replace(secret)
                 backup_path.unlink()
@@ -203,7 +203,7 @@ def fetch_certificate(
     output_file = f"{context_name}-kubeseal-cert.crt"
     try:
         with open(output_file, "w", encoding="utf-8") as f:
-            subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, check=True)
+            subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, check=True)  # nosec B603 - fixed kubeseal/kubectl argv list, no shell, no untrusted command input
     except subprocess.CalledProcessError as err:
         # Clean up partial output file on failure
         with contextlib.suppress(OSError):
@@ -246,7 +246,7 @@ def backup_controller_secret(
     output_file = f"{context_name}-secret-backup.yaml"
     try:
         with open(output_file, "w", encoding="utf-8") as f:
-            subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, check=True)
+            subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, check=True)  # nosec B603 - fixed kubeseal/kubectl argv list, no shell, no untrusted command input
     except subprocess.CalledProcessError as err:
         # Clean up partial output file on failure
         with contextlib.suppress(OSError):

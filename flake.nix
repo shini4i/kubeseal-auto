@@ -81,6 +81,12 @@
               kubectl
               kubeseal
               bump2version
+              # Security scanners, mirroring the CI security workflow so they can
+              # be run locally. bandit is a Python tool and lives in the uv dev
+              # group instead.
+              zizmor
+              trivy
+              trufflehog
             ];
             env = {
               # Force uv to use the interpreter from this shell, not a downloaded one.
