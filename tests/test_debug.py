@@ -25,23 +25,23 @@ def _reset_logger() -> Iterator[None]:
 class TestConfigureDebug:
     """Tests for configure_debug function."""
 
-    def test_enable_debug(self):
+    def test_enable_debug(self) -> None:
         """Test enabling debug sets log level to DEBUG."""
         configure_debug(enabled=True)
         assert logger.level == logging.DEBUG
 
-    def test_disable_debug(self):
+    def test_disable_debug(self) -> None:
         """Test disabling debug sets log level to WARNING."""
         configure_debug(enabled=False)
         assert logger.level == logging.WARNING
 
-    def test_enable_adds_handler(self):
+    def test_enable_adds_handler(self) -> None:
         """Test enabling debug adds a handler if none exist."""
         logger.handlers.clear()
         configure_debug(enabled=True)
         assert len(logger.handlers) == 1
 
-    def test_enable_does_not_duplicate_handlers(self):
+    def test_enable_does_not_duplicate_handlers(self) -> None:
         """Test enabling debug twice doesn't add duplicate handlers."""
         logger.handlers.clear()
         configure_debug(enabled=True)
@@ -52,7 +52,7 @@ class TestConfigureDebug:
 class TestIcFunction:
     """Tests for ic() debug function."""
 
-    def test_ic_with_value_when_debug_enabled(self, caplog):
+    def test_ic_with_value_when_debug_enabled(self, caplog: pytest.LogCaptureFixture) -> None:
         """Test ic() logs value when debug is enabled."""
         configure_debug(enabled=True)
         logger.propagate = True
@@ -62,7 +62,7 @@ class TestIcFunction:
 
         assert "test_value" in caplog.text
 
-    def test_ic_silent_when_debug_disabled(self, caplog):
+    def test_ic_silent_when_debug_disabled(self, caplog: pytest.LogCaptureFixture) -> None:
         """Test ic() produces no output when debug is disabled."""
         configure_debug(enabled=False)
         logger.propagate = True
@@ -73,7 +73,7 @@ class TestIcFunction:
 
         assert "should_not_appear" not in caplog.text
 
-    def test_ic_bare_call(self, caplog):
+    def test_ic_bare_call(self, caplog: pytest.LogCaptureFixture) -> None:
         """Test ic() with no arguments logs call location."""
         configure_debug(enabled=True)
         logger.propagate = True
@@ -84,7 +84,7 @@ class TestIcFunction:
         assert "ic|" in caplog.text
         assert result is None
 
-    def test_ic_single_arg_returns_value(self):
+    def test_ic_single_arg_returns_value(self) -> None:
         """Test ic() with one argument returns that argument."""
         configure_debug(enabled=True)
         logger.propagate = True
@@ -93,7 +93,7 @@ class TestIcFunction:
 
         assert result == 42
 
-    def test_ic_multiple_args_returns_tuple(self):
+    def test_ic_multiple_args_returns_tuple(self) -> None:
         """Test ic() with multiple arguments returns a tuple."""
         configure_debug(enabled=True)
         logger.propagate = True
@@ -102,7 +102,7 @@ class TestIcFunction:
 
         assert result == ("a", "b", "c")
 
-    def test_ic_returns_value_when_debug_disabled(self):
+    def test_ic_returns_value_when_debug_disabled(self) -> None:
         """Test ic() returns values even when debug logging is disabled."""
         configure_debug(enabled=False)
 
@@ -114,14 +114,14 @@ class TestIcFunction:
 class TestGetCallExpression:
     """Tests for _get_call_expression fallback branches."""
 
-    def test_returns_none_when_source_lookup_raises(self):
+    def test_returns_none_when_source_lookup_raises(self) -> None:
         """Test fallback to None when inspect.getsourcelines raises OSError."""
         with patch.object(inspect, "getsourcelines", side_effect=OSError("no source")):
             result = _get_call_expression()
 
         assert result is None
 
-    def test_returns_none_when_frame_is_none(self):
+    def test_returns_none_when_frame_is_none(self) -> None:
         """Test fallback to None when currentframe() returns None."""
         with patch.object(inspect, "currentframe", return_value=None):
             result = _get_call_expression()

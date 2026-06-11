@@ -13,25 +13,25 @@ from kubeseal_auto.exceptions import BinaryNotFoundError, UnsupportedPlatformErr
 class TestHostPlatformDetection:
     """Tests for platform detection."""
 
-    def test_get_cpu_type_x86_64(self):
+    def test_get_cpu_type_x86_64(self) -> None:
         """Test detection of x86_64 CPU."""
         with patch("kubeseal_auto.core.host.platform.machine", return_value="x86_64"):
             result = Host._get_cpu_type()
             assert result == "amd64"
 
-    def test_get_cpu_type_arm64(self):
+    def test_get_cpu_type_arm64(self) -> None:
         """Test detection of arm64 CPU."""
         with patch("kubeseal_auto.core.host.platform.machine", return_value="arm64"):
             result = Host._get_cpu_type()
             assert result == "arm64"
 
-    def test_get_cpu_type_aarch64(self):
+    def test_get_cpu_type_aarch64(self) -> None:
         """Test detection of aarch64 CPU (common Linux ARM variant)."""
         with patch("kubeseal_auto.core.host.platform.machine", return_value="aarch64"):
             result = Host._get_cpu_type()
             assert result == "arm64"
 
-    def test_get_cpu_type_unsupported(self):
+    def test_get_cpu_type_unsupported(self) -> None:
         """Test error on unsupported CPU architecture."""
         with patch("kubeseal_auto.core.host.platform.machine", return_value="i386"):
             with pytest.raises(UnsupportedPlatformError) as exc_info:
@@ -39,19 +39,19 @@ class TestHostPlatformDetection:
             assert "Unsupported CPU architecture" in str(exc_info.value)
             assert "i386" in str(exc_info.value)
 
-    def test_get_system_type_linux(self):
+    def test_get_system_type_linux(self) -> None:
         """Test detection of Linux system."""
         with patch("kubeseal_auto.core.host.platform.system", return_value="Linux"):
             result = Host._get_system_type()
             assert result == "linux"
 
-    def test_get_system_type_darwin(self):
+    def test_get_system_type_darwin(self) -> None:
         """Test detection of macOS (Darwin) system."""
         with patch("kubeseal_auto.core.host.platform.system", return_value="Darwin"):
             result = Host._get_system_type()
             assert result == "darwin"
 
-    def test_get_system_type_unsupported(self):
+    def test_get_system_type_unsupported(self) -> None:
         """Test error on unsupported operating system."""
         with patch("kubeseal_auto.core.host.platform.system", return_value="Windows"):
             with pytest.raises(UnsupportedPlatformError) as exc_info:
@@ -63,7 +63,7 @@ class TestHostPlatformDetection:
 class TestHostInit:
     """Tests for Host initialization."""
 
-    def test_init_sets_correct_values(self):
+    def test_init_sets_correct_values(self) -> None:
         """Test that Host initializes with correct platform values."""
         with (
             patch("kubeseal_auto.core.host.platform.machine", return_value="x86_64"),
@@ -86,7 +86,7 @@ class TestHostInit:
 class TestHostBinaryManagement:
     """Tests for kubeseal binary management."""
 
-    def test_ensure_kubeseal_binary_exists(self):
+    def test_ensure_kubeseal_binary_exists(self) -> None:
         """Test that no download is triggered when binary exists."""
         with (
             patch("kubeseal_auto.core.host.platform.machine", return_value="x86_64"),
@@ -99,7 +99,7 @@ class TestHostBinaryManagement:
                 host.ensure_kubeseal_binary("0.26.0")
                 mock_download.assert_not_called()
 
-    def test_ensure_kubeseal_binary_downloads_when_missing(self):
+    def test_ensure_kubeseal_binary_downloads_when_missing(self) -> None:
         """Test that download is triggered when binary is missing."""
         with (
             patch("kubeseal_auto.core.host.platform.machine", return_value="x86_64"),
@@ -112,7 +112,7 @@ class TestHostBinaryManagement:
                 host.ensure_kubeseal_binary("0.26.0")
                 mock_download.assert_called_once_with("0.26.0")
 
-    def test_ensure_kubeseal_binary_strips_v_prefix(self):
+    def test_ensure_kubeseal_binary_strips_v_prefix(self) -> None:
         """Test that version prefix 'v' is handled correctly.
 
         ensure_kubeseal_binary passes the version as-is to helper methods,
@@ -130,7 +130,7 @@ class TestHostBinaryManagement:
                 # Version is passed as-is; _download_kubeseal_binary normalizes internally
                 mock_download.assert_called_once_with("v0.26.0")
 
-    def test_download_kubeseal_binary_success(self):
+    def test_download_kubeseal_binary_success(self) -> None:
         """Test successful binary download."""
         with (
             patch("kubeseal_auto.core.host.platform.machine", return_value="x86_64"),
@@ -166,7 +166,7 @@ class TestHostBinaryManagement:
                 mock_tarfile.assert_called_once()
                 mock_tar.extract.assert_called_once()
 
-    def test_download_kubeseal_binary_version_not_found(self):
+    def test_download_kubeseal_binary_version_not_found(self) -> None:
         """Test error when version is not available."""
         with (
             patch("kubeseal_auto.core.host.platform.machine", return_value="x86_64"),
@@ -188,7 +188,7 @@ class TestHostBinaryManagement:
 
             assert "not available" in str(exc_info.value)
 
-    def test_download_creates_bin_directory(self):
+    def test_download_creates_bin_directory(self) -> None:
         """Test that bin directory is created if it doesn't exist."""
         with (
             patch("kubeseal_auto.core.host.platform.machine", return_value="x86_64"),

@@ -15,7 +15,7 @@ from kubeseal_auto.models import SecretParams, SecretType
 class TestCliVersion:
     """Tests for version command."""
 
-    def test_version_flag(self):
+    def test_version_flag(self) -> None:
         """Test --version flag prints version."""
         runner = CliRunner()
         result = runner.invoke(cli, ["--version"])
@@ -23,7 +23,7 @@ class TestCliVersion:
         assert result.exit_code == 0
         assert __version__ in result.output
 
-    def test_version_short_flag(self):
+    def test_version_short_flag(self) -> None:
         """Test -v flag prints version."""
         runner = CliRunner()
         result = runner.invoke(cli, ["-v"])
@@ -35,7 +35,7 @@ class TestCliVersion:
 class TestCliHelp:
     """Tests for help output."""
 
-    def test_help_flag(self):
+    def test_help_flag(self) -> None:
         """Test --help flag shows help text."""
         runner = CliRunner()
         result = runner.invoke(cli, ["--help"])
@@ -55,7 +55,7 @@ class TestCliHelp:
 class TestCliDetachedMode:
     """Tests for detached mode operations."""
 
-    def test_cert_option_enables_detached_mode(self):
+    def test_cert_option_enables_detached_mode(self) -> None:
         """Test that --cert option enables detached mode."""
         runner = CliRunner()
 
@@ -77,7 +77,7 @@ class TestCliDetachedMode:
 class TestCliFetch:
     """Tests for certificate fetch operation."""
 
-    def test_fetch_calls_fetch_certificate(self):
+    def test_fetch_calls_fetch_certificate(self) -> None:
         """Test --fetch option calls fetch_certificate method."""
         runner = CliRunner()
 
@@ -96,7 +96,7 @@ class TestCliFetch:
 class TestCliBackup:
     """Tests for backup operation."""
 
-    def test_backup_calls_backup_method(self):
+    def test_backup_calls_backup_method(self) -> None:
         """Test --backup option calls backup method."""
         runner = CliRunner()
 
@@ -115,7 +115,7 @@ class TestCliBackup:
 class TestCliReencrypt:
     """Tests for re-encryption operation."""
 
-    def test_reencrypt_calls_reencrypt_method(self):
+    def test_reencrypt_calls_reencrypt_method(self) -> None:
         """Test --re-encrypt option calls reencrypt method."""
         runner = CliRunner()
 
@@ -134,7 +134,7 @@ class TestCliReencrypt:
 class TestCliEdit:
     """Tests for edit operation."""
 
-    def test_edit_calls_edit_secret(self):
+    def test_edit_calls_edit_secret(self) -> None:
         """Test --edit option calls edit_secret function."""
         runner = CliRunner()
 
@@ -156,7 +156,7 @@ class TestCliEdit:
 class TestCliDebug:
     """Tests for debug mode."""
 
-    def test_debug_flag_enables_debug_logging(self):
+    def test_debug_flag_enables_debug_logging(self) -> None:
         """Test --debug flag calls configure_debug with enabled=True."""
         runner = CliRunner()
 
@@ -179,7 +179,7 @@ class TestCliDebug:
 class TestCreateNewSecret:
     """Tests for create_new_secret function."""
 
-    def test_create_generic_secret(self):
+    def test_create_generic_secret(self) -> None:
         """Test creating a generic secret."""
         mock_kubeseal = MagicMock()
         secret_params = SecretParams(
@@ -194,7 +194,7 @@ class TestCreateNewSecret:
         mock_kubeseal.create_generic_secret.assert_called_once()
         mock_kubeseal.seal.assert_called_once_with(secret_params=secret_params)
 
-    def test_create_tls_secret(self):
+    def test_create_tls_secret(self) -> None:
         """Test creating a TLS secret."""
         mock_kubeseal = MagicMock()
         secret_params = SecretParams(
@@ -209,7 +209,7 @@ class TestCreateNewSecret:
         mock_kubeseal.create_tls_secret.assert_called_once()
         mock_kubeseal.seal.assert_called_once_with(secret_params=secret_params)
 
-    def test_create_docker_registry_secret(self):
+    def test_create_docker_registry_secret(self) -> None:
         """Test creating a docker-registry secret."""
         mock_kubeseal = MagicMock()
         secret_params = SecretParams(
@@ -228,7 +228,7 @@ class TestCreateNewSecret:
 class TestEditSecret:
     """Tests for edit_secret function."""
 
-    def test_edit_secret_success(self):
+    def test_edit_secret_success(self) -> None:
         """Test successfully editing a secret."""
         mock_kubeseal = MagicMock()
         mock_kubeseal.parse_existing_secret.return_value = {
@@ -244,7 +244,7 @@ class TestEditSecret:
         mock_kubeseal.create_generic_secret.assert_called_once()
         mock_kubeseal.merge.assert_called_once_with("secret.yaml")
 
-    def test_edit_secret_file_not_found(self):
+    def test_edit_secret_file_not_found(self) -> None:
         """Test error when secret file is not found."""
         mock_kubeseal = MagicMock()
         mock_kubeseal.parse_existing_secret.side_effect = SecretParsingError("File not found")
@@ -252,7 +252,7 @@ class TestEditSecret:
         with pytest.raises(click.ClickException, match="File not found"):
             edit_secret(mock_kubeseal, "nonexistent.yaml")
 
-    def test_edit_secret_empty_file(self):
+    def test_edit_secret_empty_file(self) -> None:
         """Test error when secret file is empty."""
         mock_kubeseal = MagicMock()
         mock_kubeseal.parse_existing_secret.return_value = None
@@ -260,7 +260,7 @@ class TestEditSecret:
         with pytest.raises(click.ClickException, match="empty"):
             edit_secret(mock_kubeseal, "empty.yaml")
 
-    def test_edit_secret_missing_metadata_fields(self):
+    def test_edit_secret_missing_metadata_fields(self) -> None:
         """Test error when secret YAML is missing metadata.name or metadata.namespace."""
         mock_kubeseal = MagicMock()
         mock_kubeseal.parse_existing_secret.return_value = {
@@ -271,7 +271,7 @@ class TestEditSecret:
         with pytest.raises(click.ClickException, match="missing required field"):
             edit_secret(mock_kubeseal, "bad-secret.yaml")
 
-    def test_edit_secret_missing_metadata_key(self):
+    def test_edit_secret_missing_metadata_key(self) -> None:
         """Test error when secret YAML has no metadata key at all."""
         mock_kubeseal = MagicMock()
         mock_kubeseal.parse_existing_secret.return_value = {
@@ -282,7 +282,7 @@ class TestEditSecret:
         with pytest.raises(click.ClickException, match="missing required field"):
             edit_secret(mock_kubeseal, "no-metadata.yaml")
 
-    def test_edit_secret_metadata_not_a_dict(self):
+    def test_edit_secret_metadata_not_a_dict(self) -> None:
         """Test error when metadata value is not a dict (e.g., null in YAML)."""
         mock_kubeseal = MagicMock()
         mock_kubeseal.parse_existing_secret.return_value = {
@@ -298,7 +298,7 @@ class TestEditSecret:
 class TestCliSelect:
     """Tests for context selection."""
 
-    def test_select_flag_passed_to_kubeseal(self):
+    def test_select_flag_passed_to_kubeseal(self) -> None:
         """Test --select flag is passed to Kubeseal."""
         runner = CliRunner()
 
