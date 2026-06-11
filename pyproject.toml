@@ -1,6 +1,6 @@
 [project]
 name = "kubeseal-auto"
-version = "0.7.0"
+version = "0.7.1"
 description = "An interactive wrapper for kubeseal binary"
 authors = [{ name = "Vadim Gedz", email = "github@shini4i.dev" }]
 license = "MIT"
