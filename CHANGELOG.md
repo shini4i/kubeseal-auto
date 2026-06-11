@@ -8,7 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **CI security scanning** (`security.yml`): bandit (Python SAST), Trivy (dependency CVEs against `uv.lock`), TruffleHog (secret scanning), and zizmor (GitHub Actions audit), running on pull requests and pushes to `main`.
+- **CI security scanning** (`security.yml`): bandit (Python SAST), Trivy (dependency CVEs against `uv.lock`), and TruffleHog (secret scanning), running on pull requests and pushes to `main`.
+- **Workflow audit** (`zizmor.yml`): zizmor GitHub Actions audit, scoped via path filter to run only when `.github/workflows/**` changes.
 - Pre-commit hooks for bandit and TruffleHog, so Python security issues and secrets are caught locally before a commit reaches CI.
 - `bandit` added to the dev dependency group; `zizmor`, `trivy`, and `trufflehog` added to the Nix devshell.
 
