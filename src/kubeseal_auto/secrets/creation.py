@@ -180,10 +180,10 @@ def create_regcred_secret(secret_params: SecretParams, output_path: Path) -> Non
         secret_params.namespace,
         f"--docker-server={docker_server}",
         f"--docker-username={docker_username}",
-        f"--docker-password={docker_password}",
+        "--docker-password=-",  # read from stdin — keeps password out of /proc/*/cmdline
         _DRY_RUN_CLIENT,
         "-o",
         "yaml",
     ]
 
-    _run_kubectl_write_output(cmd, output_path, "docker-registry")
+    _run_kubectl_write_output(cmd, output_path, "docker-registry", input_data=docker_password.encode())

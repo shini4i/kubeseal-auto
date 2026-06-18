@@ -222,8 +222,10 @@ class TestKubesealSecretCreation:
             assert "default" in cmd
             assert f"--docker-server={docker_server}" in cmd
             assert f"--docker-username={docker_username}" in cmd
-            assert f"--docker-password={docker_password}" in cmd
+            assert "--docker-password=-" in cmd
             assert "--dry-run=client" in cmd
+            # Password passed via stdin, not the command line
+            assert mock_subprocess.call_args[1]["input"] == docker_password.encode()
 
     def test_create_tls_secret_missing_files(self, kubeseal_mocks: dict[str, MagicMock]) -> None:  # noqa: ARG002
         """Test creating a TLS secret with missing files raises ClickException."""

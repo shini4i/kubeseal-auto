@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Hardened existing workflows: per-job least-privilege `permissions` on `run-tests.yml`/`e2e.yml` and `persist-credentials: false` on all `actions/checkout` steps, limiting the blast radius of a compromised action.
 - Documented `# nosec` annotations on the `kubeseal`/`kubectl` `subprocess` calls (fixed argv lists, no shell), keeping bandit fail-closed on any future subprocess usage.
+- Docker registry passwords are now passed to `kubectl` via stdin (`--docker-password=-`) instead of as a CLI argument, keeping the password out of `/proc/*/cmdline`.
 
 ## [0.7.1] - 2026-06-11
 
