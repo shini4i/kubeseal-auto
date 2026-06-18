@@ -9,3 +9,5 @@ result
 *-secret-backup.yaml
 .coverage
 junit.xml
+*.py,cover
+coverage.xml
