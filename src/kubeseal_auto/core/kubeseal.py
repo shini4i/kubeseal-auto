@@ -134,7 +134,8 @@ class Kubeseal:
 
     def _cleanup_temp_file(self) -> None:
         """Remove the temporary file if it exists."""
-        atexit.unregister(self._cleanup_temp_file)
+        with contextlib.suppress(ValueError):
+            atexit.unregister(self._cleanup_temp_file)
         if hasattr(self, "_temp_file_path"):
             with contextlib.suppress(OSError):
                 self._temp_file_path.unlink(missing_ok=True)
@@ -207,14 +208,22 @@ class Kubeseal:
         """
         create_generic_secret(secret_params, self._temp_file_path)
 
-    def create_tls_secret(self, secret_params: SecretParams) -> None:
+    def create_tls_secret(
+        self,
+        secret_params: SecretParams,
+        *,
+        key_path: Path = Path("tls.key"),
+        cert_path: Path = Path("tls.crt"),
+    ) -> None:
         """Generate a temporary TLS secret YAML file.
 
         Args:
             secret_params: SecretParams containing name and namespace.
+            key_path: Path to the TLS key file (default: ``tls.key`` in CWD).
+            cert_path: Path to the TLS certificate file (default: ``tls.crt`` in CWD).
 
         """
-        create_tls_secret(secret_params, self._temp_file_path)
+        create_tls_secret(secret_params, self._temp_file_path, key_path=key_path, cert_path=cert_path)
 
     def create_regcred_secret(self, secret_params: SecretParams) -> None:
         """Generate a temporary docker-registry secret YAML file.

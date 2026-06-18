@@ -226,6 +226,7 @@ class TestBackupControllerSecret:
         with (
             patch("subprocess.run") as mock_run,
             patch("builtins.open", mock_open()),
+            patch("kubeseal_auto.secrets.sealing.console.warning") as mock_warning,
         ):
             mock_run.return_value = MagicMock(returncode=0)
 
@@ -236,6 +237,8 @@ class TestBackupControllerSecret:
             )
 
             mock_run.assert_called_once()
+            mock_warning.assert_called_once()
+            assert "private key" in mock_warning.call_args[0][0]
 
     def test_backup_failure(self) -> None:
         """Test error handling when backup fails."""

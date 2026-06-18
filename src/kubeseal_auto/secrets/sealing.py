@@ -243,6 +243,12 @@ def backup_controller_secret(
     ]
     ic(cmd)
 
+    console.warning(
+        "Backing up the controller encryption secret. "
+        "This file contains the private key that can decrypt ALL SealedSecrets "
+        "managed by this controller. Store it securely and delete it after use."
+    )
+
     output_file = f"{context_name}-secret-backup.yaml"
     try:
         with open(output_file, "w", encoding="utf-8") as f:

@@ -6,5 +6,6 @@ result
 .direnv/
 **/__pycache__
 **/*.crt
+*-secret-backup.yaml
 .coverage
 junit.xml

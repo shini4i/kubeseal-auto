@@ -106,30 +106,33 @@ def create_generic_secret(secret_params: SecretParams, output_path: Path) -> Non
     _run_kubectl_write_output(cmd, output_path, "generic")
 
 
-def create_tls_secret(secret_params: SecretParams, output_path: Path) -> None:
+def create_tls_secret(
+    secret_params: SecretParams,
+    output_path: Path,
+    *,
+    key_path: Path = Path("tls.key"),
+    cert_path: Path = Path("tls.crt"),
+) -> None:
     """Generate a temporary TLS secret YAML file.
-
-    Expects tls.key and tls.crt files to exist in the current directory.
 
     Args:
         secret_params: SecretParams containing name and namespace.
         output_path: Path where the temporary secret YAML will be written.
+        key_path: Path to the TLS key file (default: ``tls.key`` in CWD).
+        cert_path: Path to the TLS certificate file (default: ``tls.crt`` in CWD).
 
     Raises:
-        click.ClickException: If tls.key or tls.crt files do not exist.
+        click.ClickException: If the TLS key or certificate files do not exist.
 
     """
-    key_file = Path("tls.key")
-    cert_file = Path("tls.crt")
-
     missing_files = []
-    if not key_file.exists():
-        missing_files.append("tls.key")
-    if not cert_file.exists():
-        missing_files.append("tls.crt")
+    if not key_path.exists():
+        missing_files.append(str(key_path))
+    if not cert_path.exists():
+        missing_files.append(str(cert_path))
 
     if missing_files:
-        raise click.ClickException(f"Required TLS file(s) not found in current directory: {', '.join(missing_files)}")
+        raise click.ClickException(f"Required TLS file(s) not found: {', '.join(missing_files)}")
 
     console.step("Generating temporary TLS secret yaml file")
     cmd: list[str] = [
@@ -141,9 +144,9 @@ def create_tls_secret(secret_params: SecretParams, output_path: Path) -> None:
         "--namespace",
         secret_params.namespace,
         "--key",
-        str(key_file),
+        str(key_path),
         "--cert",
-        str(cert_file),
+        str(cert_path),
         _DRY_RUN_CLIENT,
         "-o",
         "yaml",

@@ -1,5 +1,6 @@
 """Tests for kubeseal.py module."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
 
 import click
@@ -184,6 +185,26 @@ class TestKubesealSecretCreation:
             assert "--dry-run=client" in cmd
             assert "-o" in cmd
             assert "yaml" in cmd
+
+    def test_create_tls_secret_custom_paths(
+        self, kubeseal_mocks: dict[str, MagicMock], mock_subprocess: MagicMock  # noqa: ARG002
+    ) -> None:
+        """Test creating a TLS secret with custom key/cert paths."""
+        kubeseal = Kubeseal(select_context=False)
+        secret_params = SecretParams(name="test-tls-secret", namespace="default", secret_type=SecretType.TLS)
+
+        with (
+            patch("builtins.open", mock_open()),
+            patch("kubeseal_auto.secrets.creation.Path.exists", return_value=True),
+        ):
+            kubeseal.create_tls_secret(secret_params, key_path=Path("custom.key"), cert_path=Path("custom.crt"))
+
+            mock_subprocess.assert_called_once()
+            cmd = mock_subprocess.call_args[0][0]
+            assert "--key" in cmd
+            assert "custom.key" in cmd
+            assert "--cert" in cmd
+            assert "custom.crt" in cmd
 
     def test_create_regcred_secret(self, kubeseal_mocks: dict[str, MagicMock], mock_subprocess: MagicMock) -> None:  # noqa: ARG002
         """Test creating a docker-registry secret."""

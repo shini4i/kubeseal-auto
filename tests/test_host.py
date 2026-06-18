@@ -6,8 +6,48 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from kubeseal_auto.core.host import Host
+from kubeseal_auto.core.host import Host, normalize_version
 from kubeseal_auto.exceptions import BinaryNotFoundError, UnsupportedPlatformError
+
+
+class TestNormalizeVersion:
+    """Tests for normalize_version function."""
+
+    def test_strips_leading_v(self) -> None:
+        """Test that leading 'v' prefix is removed."""
+        assert normalize_version("v0.26.0") == "0.26.0"
+
+    def test_preserves_version_without_v(self) -> None:
+        """Test that version without 'v' prefix is unchanged."""
+        assert normalize_version("0.26.0") == "0.26.0"
+
+    def test_semver_pre_release(self) -> None:
+        """Test semantic version with pre-release suffix."""
+        assert normalize_version("v0.26.0-beta.1") == "0.26.0-beta.1"
+
+    def test_semver_build_metadata(self) -> None:
+        """Test semantic version with build metadata."""
+        assert normalize_version("0.26.0+build.42") == "0.26.0+build.42"
+
+    def test_empty_string_raises(self) -> None:
+        """Test that empty string raises ValueError."""
+        with pytest.raises(ValueError, match="Version string cannot be None or empty"):
+            normalize_version("")
+
+    def test_bare_v_raises(self) -> None:
+        """Test that bare 'v' raises ValueError (empty after strip)."""
+        with pytest.raises(ValueError, match="Invalid version string"):
+            normalize_version("v")
+
+    def test_non_semver_raises(self) -> None:
+        """Test that non-semver string raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid version format"):
+            normalize_version("not-a-version")
+
+    def test_partial_version_raises(self) -> None:
+        """Test that partial version string raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid version format"):
+            normalize_version("0.26")
 
 
 class TestHostPlatformDetection:
