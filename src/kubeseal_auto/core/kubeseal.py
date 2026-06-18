@@ -97,8 +97,10 @@ class Kubeseal:
                 )
                 self._fallback_to_system_binary()
 
-        # Create temp file with delete=False for Windows compatibility
-        # Close immediately to avoid file locking issues when reopening
+        # Obtain a guaranteed-unique temporary path for the unsealed secret.
+        # NamedTemporaryFile is used only for its unique-name guarantee; the
+        # file is closed immediately and the actual secret content is written
+        # later by kubectl via _run_kubectl_write_output.
         temp_file = NamedTemporaryFile(delete=False)
         self._temp_file_path: Path = Path(temp_file.name)
         temp_file.close()
