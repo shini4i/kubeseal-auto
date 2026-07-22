@@ -26,10 +26,10 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: uv sync --group dev
+        run: uv sync --group dev --locked --no-build --no-install-project
 
       - name: Run bandit
-        run: uv run bandit -r src/
+        run: uv run --locked --no-build --no-sync bandit -r src/
 
   trivy:
     name: Trivy (dependency vulnerabilities)

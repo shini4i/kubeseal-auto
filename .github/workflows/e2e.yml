@@ -27,7 +27,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: uv sync --group dev
+        run: uv sync --group dev --locked
 
       - name: Create kind cluster
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
@@ -37,7 +37,7 @@ jobs:
 
       - name: Install sealed-secrets controller
         run: |
-          helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
+          helm repo add sealed-secrets https://bitnami.github.io/sealed-secrets
           helm install sealed-secrets-controller sealed-secrets/sealed-secrets \
             --namespace kube-system \
             --wait \
@@ -47,4 +47,4 @@ jobs:
         run: kubectl rollout status deployment/sealed-secrets-controller -n kube-system --timeout=120s
 
       - name: Run e2e tests
-        run: uv run pytest tests/e2e -m e2e -v
+        run: uv run --locked pytest tests/e2e -m e2e -v

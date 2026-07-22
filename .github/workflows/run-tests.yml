@@ -26,10 +26,10 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: uv sync --group dev
+        run: uv sync --group dev --locked
 
       - name: Run Pytest
-        run: uv run pytest --cov=src --cov-report=xml
+        run: uv run --locked pytest --cov=src --cov-report=xml
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@e53489f4d376d79066609109e7a95a29eb3740b1 # v7.0.0
