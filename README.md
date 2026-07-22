@@ -61,9 +61,3 @@ kubeseal-auto --backup
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
-
-### Development setup
-The pre-commit hooks include a [TruffleHog](https://github.com/trufflesecurity/trufflehog#floppy_disk-installation) secret scan that needs the `trufflehog` binary on `$PATH` (it is **not** installed by `uv sync`).
-
-- **With Nix (recommended):** `nix develop` provides `trufflehog` (and the other scanners); then `uv sync --group dev` and `pre-commit install`.
-- **Without Nix:** install `trufflehog` manually, then `uv sync --group dev` and `pre-commit install`.
