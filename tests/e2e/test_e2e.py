@@ -286,6 +286,7 @@ def test_07_backup(
     content = yaml.safe_load(backup_file.read_text())
     assert content["kind"] == "Secret"
     assert content["type"] == "kubernetes.io/tls"
+    assert backup_file.stat().st_mode & 0o777 == 0o600, "Backup file holding the private key must be owner-only"
 
 
 @pytest.mark.e2e

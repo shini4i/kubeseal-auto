@@ -8,6 +8,7 @@ from unittest.mock import patch
 import click
 import pytest
 
+from kubeseal_auto.exceptions import SecretParsingError
 from kubeseal_auto.models import SecretParams, SecretType
 from kubeseal_auto.secrets.sealing import (
     _find_sealed_secrets,
@@ -170,6 +171,31 @@ class TestReencryptSecrets:
 
         assert secret_file.read_text() == self.original_content
         assert sorted(p.name for p in tmp_path.iterdir()) == ["secret.yaml"]
+
+    @pytest.mark.parametrize(
+        "error",
+        [SecretParsingError("malformed YAML"), PermissionError("read-only")],
+        ids=["parse-error", "os-error"],
+    )
+    def test_reencrypt_keeps_backup_when_annotation_fails(self, tmp_path: Path, error: Exception) -> None:
+        """Test that the original file stays recoverable if the final annotation step fails."""
+        secret_file = tmp_path / "secret.yaml"
+        secret_file.write_text(self.original_content)
+
+        with (
+            patch("kubeseal_auto.secrets.sealing._find_sealed_secrets", return_value=[secret_file]),
+            patch(_RUN, side_effect=_write_stdout("reencrypted\n")),
+            patch(
+                "kubeseal_auto.secrets.sealing.append_argo_annotation",
+                side_effect=error,
+            ),
+            pytest.raises(click.ClickException, match="Failed to annotate .*Original kept at .*secret.yaml_backup"),
+        ):
+            reencrypt_secrets(src=str(tmp_path), kubeseal_cmd=["kubeseal", "--format=yaml"])
+
+        assert (tmp_path / "secret.yaml_backup").read_text() == self.original_content
+        assert secret_file.read_text() == "reencrypted\n"
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["secret.yaml", "secret.yaml_backup"]
 
 
 class TestFetchCertificate:

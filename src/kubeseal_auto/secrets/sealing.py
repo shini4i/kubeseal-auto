@@ -109,14 +109,17 @@ def merge_secret(
 def reencrypt_secrets(src: str, kubeseal_cmd: list[str]) -> None:
     """Re-encrypt existing SealedSecret files using the newest encryption certificate.
 
-    Each file is restored to its original content if its re-encryption fails.
+    Each file is restored to its original content if kubeseal fails. If adding
+    the ArgoCD annotation fails afterwards, the original stays in
+    ``<file>_backup`` and the error names that path.
 
     Args:
         src: Path to the directory containing SealedSecret files.
         kubeseal_cmd: Base kubeseal command with appropriate flags.
 
     Raises:
-        click.ClickException: If kubeseal is not found or fails for any file.
+        click.ClickException: If kubeseal is not found or fails for any file,
+            or the ArgoCD annotation cannot be added.
 
     """
     secrets = _find_sealed_secrets(src)
@@ -145,9 +148,11 @@ def reencrypt_secrets(src: str, kubeseal_cmd: list[str]) -> None:
 
             # Atomic replace on success
             output_tmp.replace(secret)
+            try:
+                append_argo_annotation(str(secret))
+            except (SecretParsingError, OSError) as err:
+                raise click.ClickException(f"Failed to annotate {secret}: {err}. Original kept at {backup_path}") from err
             backup_path.unlink()
-
-            append_argo_annotation(str(secret))
             progress.update(task, advance=1)
 
 
