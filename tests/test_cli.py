@@ -8,7 +8,12 @@ from click.testing import CliRunner
 
 from kubeseal_auto import __version__
 from kubeseal_auto.cli import cli, create_new_secret, edit_secret
-from kubeseal_auto.exceptions import SecretParsingError
+from kubeseal_auto.exceptions import (
+    BinaryNotFoundError,
+    ClusterConnectionError,
+    ControllerNotFoundError,
+    SecretParsingError,
+)
 from kubeseal_auto.models import SecretParams, SecretType
 
 
@@ -315,3 +320,27 @@ class TestCliSelect:
 
             assert result.exit_code == 0
             mock_kubeseal.assert_called_once_with(certificate=None, select_context=True)
+
+
+class TestCliErrors:
+    """Tests for error reporting from the CLI entry point."""
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            ControllerNotFoundError("SealedSecrets controller not found in the cluster"),
+            ClusterConnectionError("Kubernetes API request failed (403 Forbidden)"),
+            BinaryNotFoundError("kubeseal binary not found"),
+        ],
+        ids=["controller-missing", "api-forbidden", "binary-missing"],
+    )
+    def test_kubeseal_errors_exit_cleanly(self, error: Exception) -> None:
+        """Test that any kubeseal-auto error prints a message and exits 1 without a traceback."""
+        runner = CliRunner()
+
+        with patch("kubeseal_auto.cli.Kubeseal", side_effect=error):
+            result = runner.invoke(cli, [])
+
+        assert result.exit_code == 1
+        assert isinstance(result.exception, SystemExit)
+        assert str(error) in result.output

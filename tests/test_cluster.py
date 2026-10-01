@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from kubernetes.client.exceptions import ApiException
 from kubernetes.config.config_exception import ConfigException
 from urllib3.exceptions import MaxRetryError, NewConnectionError
 
@@ -241,3 +242,58 @@ class TestClusterCertificateDiscovery:
             result = cluster.find_latest_sealed_secrets_controller_certificate()
 
             assert result == "sealed-secrets-key-new"
+
+
+def _api_error(status: int, reason: str) -> ApiException:
+    """Build an ApiException as the kubernetes client raises it."""
+    return ApiException(status=status, reason=reason)
+
+
+class TestClusterApiErrors:
+    """Tests for Kubernetes API error handling."""
+
+    def test_controller_lookup_forbidden_raises_connection_error(self) -> None:
+        """Test that a 403 while listing services becomes ClusterConnectionError."""
+        with patch("kubernetes.client.CoreV1Api") as mock_api:
+            mock_api.return_value.list_service_for_all_namespaces.side_effect = _api_error(403, "Forbidden")
+
+            with pytest.raises(ClusterConnectionError, match="403 Forbidden"):
+                Cluster._find_sealed_secrets_controller()
+
+    def test_certificate_lookup_forbidden_raises_connection_error(
+        self, mock_kube_contexts: MagicMock, mock_kube_config: MagicMock, mock_controller: MagicMock  # noqa: ARG002
+    ) -> None:
+        """Test that a 403 while listing controller secrets becomes ClusterConnectionError."""
+        cluster = Cluster(select_context=False)
+
+        with patch("kubernetes.client.CoreV1Api") as mock_api:
+            mock_api.return_value.list_namespaced_secret.side_effect = _api_error(403, "Forbidden")
+
+            with pytest.raises(ClusterConnectionError, match="403 Forbidden"):
+                cluster.find_latest_sealed_secrets_controller_certificate()
+
+    def test_namespace_listing_forbidden_returns_empty_list(self) -> None:
+        """Test that a namespace-scoped user gets a warning and an empty list instead of a crash."""
+        with (
+            patch("kubernetes.client.CoreV1Api") as mock_api,
+            patch("kubeseal_auto.core.cluster.console.warning") as mock_warning,
+        ):
+            mock_api.return_value.list_namespace.side_effect = _api_error(403, "Forbidden")
+
+            assert Cluster.get_all_namespaces() == []
+
+        message = mock_warning.call_args[0][0]
+        assert "403 Forbidden" in message
+        assert "manually" in message
+
+    def test_controller_not_found_prints_no_extra_error(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that a missing controller is reported once, by the caller, not also by Cluster."""
+        with patch("kubernetes.client.CoreV1Api") as mock_api:
+            mock_api.return_value.list_service_for_all_namespaces.return_value.items = []
+
+            with pytest.raises(ControllerNotFoundError):
+                Cluster._find_sealed_secrets_controller()
+
+        assert "No controller found" not in capsys.readouterr().out

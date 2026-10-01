@@ -12,6 +12,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import click
+import requests
 
 from kubeseal_auto import console
 from kubeseal_auto.core.cluster import Cluster
@@ -50,7 +51,6 @@ class Kubeseal:
         controller_name: Name of the SealedSecrets controller.
         controller_namespace: Namespace of the SealedSecrets controller.
         current_context_name: Current Kubernetes context name.
-        namespaces_list: List of available namespaces.
 
     """
 
@@ -70,7 +70,6 @@ class Kubeseal:
         self.controller_name: str = ""
         self.controller_namespace: str = ""
         self.current_context_name: str = ""
-        self.namespaces_list: list[str] = []
 
         if certificate is not None:
             console.info("Working in detached mode")
@@ -81,7 +80,6 @@ class Kubeseal:
             self.controller_name = self.cluster.controller_name
             self.controller_namespace = self.cluster.controller_namespace
             self.current_context_name = self.cluster.context
-            self.namespaces_list = self.cluster.get_all_namespaces()
 
             try:
                 version = self.cluster.controller_version
@@ -91,9 +89,9 @@ class Kubeseal:
                 else:
                     console.warning("Controller version label not found")
                     self._fallback_to_system_binary()
-            except (BinaryNotFoundError, PathTraversalError, ValueError) as exc:
+            except (BinaryNotFoundError, PathTraversalError, ValueError, requests.RequestException) as exc:
                 console.warning(
-                    f"Failed to resolve controller version ({exc}); falling back to system kubeseal binary",
+                    f"Cannot get the kubeseal binary matching the controller ({exc}); falling back to system kubeseal binary",
                 )
                 self._fallback_to_system_binary()
 
@@ -189,12 +187,15 @@ class Kubeseal:
     def collect_parameters(self) -> SecretParams:
         """Interactively collect parameters for creating a new secret.
 
+        In connected mode, the cluster's namespaces are offered for autocomplete.
+
         Returns:
             SecretParams with namespace, secret_type, and name.
 
         """
+        namespaces = self.cluster.get_all_namespaces() if self.cluster else []
         return collect_secret_parameters(
-            namespaces=self.namespaces_list,
+            namespaces=namespaces,
             detached_mode=self.detached_mode,
         )
 

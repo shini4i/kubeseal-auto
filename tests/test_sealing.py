@@ -2,11 +2,13 @@
 
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, mock_open, patch
+from typing import Any
+from unittest.mock import patch
 
 import click
 import pytest
 
+from kubeseal_auto.exceptions import SecretParsingError
 from kubeseal_auto.models import SecretParams, SecretType
 from kubeseal_auto.secrets.sealing import (
     _find_sealed_secrets,
@@ -17,61 +19,66 @@ from kubeseal_auto.secrets.sealing import (
     seal_secret,
 )
 
+_RUN = "kubeseal_auto.secrets.command.subprocess.run"
+
+_SECRET_PARAMS = SecretParams(
+    name="test-secret",
+    namespace="default",
+    secret_type=SecretType.GENERIC,
+)
+
+
+def _write_stdout(text: str) -> Any:
+    """Build a subprocess.run side effect that writes text to the stdout file."""
+
+    def side_effect(*_args: Any, **kwargs: Any) -> None:
+        kwargs["stdout"].write(text)
+
+    return side_effect
+
 
 class TestSealSecret:
     """Tests for seal_secret function."""
 
-    def test_seal_secret_success(self, tmp_path: Path) -> None:
-        """Test successful secret sealing."""
+    def test_seal_secret_success(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that the sealed secret is written to <name>.yaml in the current directory."""
+        monkeypatch.chdir(tmp_path)
         temp_file = tmp_path / "temp_secret.yaml"
         temp_file.write_text("apiVersion: v1\nkind: Secret\n")
 
-        secret_params = SecretParams(
-            name="test-secret",
-            namespace="default",
-            secret_type=SecretType.GENERIC,
-        )
-
         with (
-            patch("subprocess.run") as mock_run,
+            patch(_RUN, side_effect=_write_stdout("kind: SealedSecret\n")) as mock_run,
             patch("kubeseal_auto.secrets.sealing.append_argo_annotation"),
-            patch("builtins.open", mock_open(read_data=temp_file.read_text())),
         ):
-            mock_run.return_value = MagicMock(returncode=0)
-
             seal_secret(
-                secret_params=secret_params,
+                secret_params=_SECRET_PARAMS,
                 temp_file_path=temp_file,
                 kubeseal_cmd=["kubeseal", "--format=yaml"],
             )
 
             mock_run.assert_called_once()
+            assert mock_run.call_args.kwargs["input"] == temp_file.read_bytes()
 
-    def test_seal_secret_raises_on_failure(self, tmp_path: Path) -> None:
-        """Test that seal_secret raises ClickException on subprocess failure."""
+        assert (tmp_path / "test-secret.yaml").read_text() == "kind: SealedSecret\n"
+
+    def test_seal_secret_raises_on_failure(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that seal_secret raises ClickException and removes partial output on failure."""
+        monkeypatch.chdir(tmp_path)
         temp_file = tmp_path / "temp_secret.yaml"
         temp_file.write_text("apiVersion: v1\nkind: Secret\n")
-
-        secret_params = SecretParams(
-            name="test-secret",
-            namespace="default",
-            secret_type=SecretType.GENERIC,
-        )
+        error = subprocess.CalledProcessError(returncode=1, cmd=["kubeseal"], stderr=b"error: certificate expired")
 
         with (
-            patch("subprocess.run") as mock_run,
-            patch("builtins.open", mock_open(read_data="")),
+            patch(_RUN, side_effect=error),
+            pytest.raises(click.ClickException, match="Failed to seal secret"),
         ):
-            mock_run.side_effect = subprocess.CalledProcessError(
-                returncode=1, cmd=["kubeseal"], stderr=b"error: certificate expired"
+            seal_secret(
+                secret_params=_SECRET_PARAMS,
+                temp_file_path=temp_file,
+                kubeseal_cmd=["kubeseal", "--format=yaml"],
             )
 
-            with pytest.raises(click.ClickException, match="Failed to seal secret"):
-                seal_secret(
-                    secret_params=secret_params,
-                    temp_file_path=temp_file,
-                    kubeseal_cmd=["kubeseal", "--format=yaml"],
-                )
+        assert not (tmp_path / "test-secret.yaml").exists()
 
 
 class TestMergeSecret:
@@ -83,111 +90,122 @@ class TestMergeSecret:
         temp_file.write_text("apiVersion: v1\nkind: Secret\n")
 
         with (
-            patch("subprocess.run") as mock_run,
+            patch(_RUN) as mock_run,
             patch("kubeseal_auto.secrets.sealing.append_argo_annotation"),
-            patch("builtins.open", mock_open(read_data="")),
         ):
-            mock_run.return_value = MagicMock(returncode=0)
-
             merge_secret(
                 secret_name="existing-secret.yaml",
                 temp_file_path=temp_file,
                 kubeseal_cmd=["kubeseal", "--format=yaml"],
             )
 
-            # Verify --merge-into flag was added
-            call_args = mock_run.call_args
-            cmd = call_args[0][0]
-            assert "--merge-into" in cmd
-            assert "existing-secret.yaml" in cmd
+            cmd = mock_run.call_args[0][0]
+            assert cmd[-2:] == ["--merge-into", "existing-secret.yaml"]
+            assert mock_run.call_args.kwargs["input"] == temp_file.read_bytes()
 
     def test_merge_secret_failure(self, tmp_path: Path) -> None:
         """Test error handling when merge fails."""
         temp_file = tmp_path / "temp_secret.yaml"
         temp_file.write_text("apiVersion: v1\nkind: Secret\n")
+        error = subprocess.CalledProcessError(returncode=1, cmd=["kubeseal"], stderr=b"merge failed")
 
         with (
-            patch("subprocess.run") as mock_run,
-            patch("builtins.open", mock_open(read_data="")),
+            patch(_RUN, side_effect=error),
+            pytest.raises(click.ClickException, match="Failed to merge secret"),
         ):
-            mock_run.side_effect = subprocess.CalledProcessError(
-                returncode=1, cmd=["kubeseal"], stderr=b"merge failed"
+            merge_secret(
+                secret_name="existing.yaml",
+                temp_file_path=temp_file,
+                kubeseal_cmd=["kubeseal", "--format=yaml"],
             )
-
-            with pytest.raises(click.ClickException, match="Failed to merge secret"):
-                merge_secret(
-                    secret_name="existing.yaml",
-                    temp_file_path=temp_file,
-                    kubeseal_cmd=["kubeseal", "--format=yaml"],
-                )
 
 
 class TestReencryptSecrets:
     """Tests for reencrypt_secrets function."""
 
+    original_content = "apiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\noriginal: true\n"
+
     def test_reencrypt_no_secrets_found(self, tmp_path: Path) -> None:
         """Test warning when no SealedSecrets are found and no subprocess is spawned."""
         with (
             patch("kubeseal_auto.secrets.sealing._find_sealed_secrets", return_value=[]),
-            patch("subprocess.run") as mock_run,
+            patch(_RUN) as mock_run,
         ):
             reencrypt_secrets(src=str(tmp_path), kubeseal_cmd=["kubeseal"])
             mock_run.assert_not_called()
 
     def test_reencrypt_success(self, tmp_path: Path) -> None:
-        """Test successful re-encryption of secrets."""
+        """Test that the file is replaced with re-encrypted output and no helper files remain."""
         secret_file = tmp_path / "secret.yaml"
-        secret_file.write_text("apiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\n")
+        secret_file.write_text(self.original_content)
 
         with (
             patch("kubeseal_auto.secrets.sealing._find_sealed_secrets", return_value=[secret_file]),
-            patch("subprocess.run") as mock_run,
+            patch(_RUN, side_effect=_write_stdout("reencrypted\n")),
             patch("kubeseal_auto.secrets.sealing.append_argo_annotation"),
         ):
-            mock_run.return_value = MagicMock(returncode=0)
+            reencrypt_secrets(src=str(tmp_path), kubeseal_cmd=["kubeseal", "--format=yaml"])
 
-            reencrypt_secrets(
-                src=str(tmp_path),
-                kubeseal_cmd=["kubeseal", "--format=yaml"],
-            )
+        assert secret_file.read_text() == "reencrypted\n"
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["secret.yaml"]
 
-            mock_run.assert_called_once()
-
-    def test_reencrypt_failure_restores_backup(self, tmp_path: Path) -> None:
-        """Test that original file is restored from backup on failure."""
+    @pytest.mark.parametrize(
+        ("side_effect", "message"),
+        [
+            (subprocess.CalledProcessError(returncode=1, cmd=["kubeseal"], stderr=b"re-encrypt failed"), "Failed to re-encrypt"),
+            (FileNotFoundError(), "kubeseal not found"),
+        ],
+        ids=["command-fails", "binary-missing"],
+    )
+    def test_reencrypt_failure_restores_backup(self, tmp_path: Path, side_effect: Exception, message: str) -> None:
+        """Test that the original file is restored and no helper files remain on any failure."""
         secret_file = tmp_path / "secret.yaml"
-        original_content = "apiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\noriginal: true\n"
-        secret_file.write_text(original_content)
+        secret_file.write_text(self.original_content)
 
         with (
             patch("kubeseal_auto.secrets.sealing._find_sealed_secrets", return_value=[secret_file]),
-            patch("subprocess.run") as mock_run,
+            patch(_RUN, side_effect=side_effect),
+            pytest.raises(click.ClickException, match=message),
         ):
-            mock_run.side_effect = subprocess.CalledProcessError(
-                returncode=1, cmd=["kubeseal"], stderr=b"re-encrypt failed"
-            )
+            reencrypt_secrets(src=str(tmp_path), kubeseal_cmd=["kubeseal", "--format=yaml"])
 
-            with pytest.raises(click.ClickException, match="Failed to re-encrypt"):
-                reencrypt_secrets(
-                    src=str(tmp_path),
-                    kubeseal_cmd=["kubeseal", "--format=yaml"],
-                )
+        assert secret_file.read_text() == self.original_content
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["secret.yaml"]
 
-            # Original content should be restored
-            assert secret_file.read_text() == original_content
+    @pytest.mark.parametrize(
+        "error",
+        [SecretParsingError("malformed YAML"), PermissionError("read-only")],
+        ids=["parse-error", "os-error"],
+    )
+    def test_reencrypt_keeps_backup_when_annotation_fails(self, tmp_path: Path, error: Exception) -> None:
+        """Test that the original file stays recoverable if the final annotation step fails."""
+        secret_file = tmp_path / "secret.yaml"
+        secret_file.write_text(self.original_content)
+
+        with (
+            patch("kubeseal_auto.secrets.sealing._find_sealed_secrets", return_value=[secret_file]),
+            patch(_RUN, side_effect=_write_stdout("reencrypted\n")),
+            patch(
+                "kubeseal_auto.secrets.sealing.append_argo_annotation",
+                side_effect=error,
+            ),
+            pytest.raises(click.ClickException, match="Failed to annotate .*Original kept at .*secret.yaml_backup"),
+        ):
+            reencrypt_secrets(src=str(tmp_path), kubeseal_cmd=["kubeseal", "--format=yaml"])
+
+        assert (tmp_path / "secret.yaml_backup").read_text() == self.original_content
+        assert secret_file.read_text() == "reencrypted\n"
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["secret.yaml", "secret.yaml_backup"]
 
 
 class TestFetchCertificate:
     """Tests for fetch_certificate function."""
 
-    def test_fetch_certificate_success(self) -> None:
+    def test_fetch_certificate_success(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test successful certificate fetch."""
-        with (
-            patch("subprocess.run") as mock_run,
-            patch("builtins.open", mock_open()),
-        ):
-            mock_run.return_value = MagicMock(returncode=0)
+        monkeypatch.chdir(tmp_path)
 
+        with patch(_RUN, side_effect=_write_stdout("CERT\n")) as mock_run:
             fetch_certificate(
                 binary="kubeseal",
                 controller_namespace="kube-system",
@@ -195,64 +213,108 @@ class TestFetchCertificate:
                 context_name="test-context",
             )
 
-            mock_run.assert_called_once()
-            call_args = mock_run.call_args[0][0]
-            assert "--fetch-cert" in call_args
+            assert "--fetch-cert" in mock_run.call_args[0][0]
 
-    def test_fetch_certificate_failure(self) -> None:
+        assert (tmp_path / "test-context-kubeseal-cert.crt").read_text() == "CERT\n"
+
+    def test_fetch_certificate_failure(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test error handling when certificate fetch fails."""
+        monkeypatch.chdir(tmp_path)
+        error = subprocess.CalledProcessError(returncode=1, cmd=["kubeseal"], stderr=b"connection refused")
+
         with (
-            patch("subprocess.run") as mock_run,
-            patch("builtins.open", mock_open()),
+            patch(_RUN, side_effect=error),
+            pytest.raises(click.ClickException, match="Failed to fetch certificate"),
         ):
-            mock_run.side_effect = subprocess.CalledProcessError(
-                returncode=1, cmd=["kubeseal"], stderr=b"connection refused"
+            fetch_certificate(
+                binary="kubeseal",
+                controller_namespace="kube-system",
+                controller_name="sealed-secrets",
+                context_name="test-context",
             )
 
-            with pytest.raises(click.ClickException, match="Failed to fetch certificate"):
-                fetch_certificate(
-                    binary="kubeseal",
-                    controller_namespace="kube-system",
-                    controller_name="sealed-secrets",
-                    context_name="test-context",
-                )
+        assert not (tmp_path / "test-context-kubeseal-cert.crt").exists()
+
+    def test_fetch_certificate_eks_context_writes_flat_filename(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that an EKS ARN context name produces a writable file in the current directory."""
+        monkeypatch.chdir(tmp_path)
+
+        with patch(_RUN) as mock_run:
+            fetch_certificate(
+                binary="kubeseal",
+                controller_namespace="kube-system",
+                controller_name="sealed-secrets",
+                context_name="arn:aws:eks:us-east-1:123456789012:cluster/prod",
+            )
+
+            assert "--context=arn:aws:eks:us-east-1:123456789012:cluster/prod" in mock_run.call_args[0][0]
+
+        assert (tmp_path / "arn_aws_eks_us-east-1_123456789012_cluster_prod-kubeseal-cert.crt").exists()
 
 
 class TestBackupControllerSecret:
     """Tests for backup_controller_secret function."""
 
-    def test_backup_success(self) -> None:
+    def test_backup_success(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test successful backup of controller secret."""
-        with (
-            patch("subprocess.run") as mock_run,
-            patch("builtins.open", mock_open()),
-        ):
-            mock_run.return_value = MagicMock(returncode=0)
+        monkeypatch.chdir(tmp_path)
 
+        with patch(_RUN, side_effect=_write_stdout("kind: Secret\n")):
             backup_controller_secret(
                 controller_namespace="kube-system",
                 secret_name="sealed-secrets-key",
                 context_name="test-context",
             )
 
-            mock_run.assert_called_once()
+        assert (tmp_path / "test-context-secret-backup.yaml").read_text() == "kind: Secret\n"
 
-    def test_backup_failure(self) -> None:
+    def test_backup_failure(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test error handling when backup fails."""
+        monkeypatch.chdir(tmp_path)
+        error = subprocess.CalledProcessError(returncode=1, cmd=["kubectl"], stderr=b"not found")
+
         with (
-            patch("subprocess.run") as mock_run,
-            patch("builtins.open", mock_open()),
+            patch(_RUN, side_effect=error),
+            pytest.raises(click.ClickException, match="Failed to backup secret"),
         ):
-            mock_run.side_effect = subprocess.CalledProcessError(
-                returncode=1, cmd=["kubectl"], stderr=b"not found"
+            backup_controller_secret(
+                controller_namespace="kube-system",
+                secret_name="sealed-secrets-key",
+                context_name="test-context",
             )
 
-            with pytest.raises(click.ClickException, match="Failed to backup secret"):
-                backup_controller_secret(
-                    controller_namespace="kube-system",
-                    secret_name="sealed-secrets-key",
-                    context_name="test-context",
-                )
+        assert not (tmp_path / "test-context-secret-backup.yaml").exists()
+
+    def test_backup_eks_context_writes_flat_filename(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that an EKS ARN context name produces a writable backup file."""
+        monkeypatch.chdir(tmp_path)
+
+        with patch(_RUN):
+            backup_controller_secret(
+                controller_namespace="kube-system",
+                secret_name="sealed-secrets-key",
+                context_name="arn:aws:eks:us-east-1:123456789012:cluster/prod",
+            )
+
+        assert (tmp_path / "arn_aws_eks_us-east-1_123456789012_cluster_prod-secret-backup.yaml").exists()
+
+    def test_backup_missing_kubectl(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that a missing kubectl binary gives a readable error instead of a traceback."""
+        monkeypatch.chdir(tmp_path)
+
+        with (
+            patch(_RUN, side_effect=FileNotFoundError),
+            pytest.raises(click.ClickException, match="kubectl not found"),
+        ):
+            backup_controller_secret(
+                controller_namespace="kube-system",
+                secret_name="sealed-secrets-key",
+                context_name="test-context",
+            )
+
+        assert not (tmp_path / "test-context-secret-backup.yaml").exists()
 
 
 class TestFindSealedSecrets:
@@ -278,3 +340,33 @@ class TestFindSealedSecrets:
         """Test with empty directory."""
         result = _find_sealed_secrets(str(tmp_path))
         assert result == []
+
+
+class TestBackupContextAndPermissions:
+    """Tests for backup_controller_secret context targeting and file permissions."""
+
+    def test_backup_targets_given_context(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that kubectl is pointed at the selected context, not kubectl's current-context."""
+        monkeypatch.chdir(tmp_path)
+
+        with patch(_RUN) as mock_run:
+            backup_controller_secret(
+                controller_namespace="kube-system",
+                secret_name="sealed-secrets-key",
+                context_name="cluster-b",
+            )
+
+        assert "--context=cluster-b" in mock_run.call_args[0][0]
+
+    def test_backup_file_is_owner_only(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that the private-key backup is readable only by its owner."""
+        monkeypatch.chdir(tmp_path)
+
+        with patch(_RUN):
+            backup_controller_secret(
+                controller_namespace="kube-system",
+                secret_name="sealed-secrets-key",
+                context_name="test-context",
+            )
+
+        assert (tmp_path / "test-context-secret-backup.yaml").stat().st_mode & 0o777 == 0o600

@@ -47,14 +47,15 @@ def collect_secret_parameters(
     """Interactively collect parameters for creating a new secret.
 
     Args:
-        namespaces: List of available namespaces for autocomplete.
+        namespaces: List of available namespaces for autocomplete. When empty,
+            the namespace is asked with plain text input.
         detached_mode: If True, use text input instead of autocomplete for namespace.
 
     Returns:
         SecretParams with namespace, secret_type, and name.
 
     """
-    if detached_mode:
+    if detached_mode or not namespaces:
         namespace = questionary.text(
             "Provide namespace for the new secret",
             validate=validate_k8s_name,
