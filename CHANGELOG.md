@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Bumped `urllib3` to `2.8.0`, fixing CVE-2026-97687 (traffic interception through an HTTPS proxy TLS override) and CVE-2026-97689 (memory exhaustion in the chunk parser).
 - The `--backup` file holds the controller's private key and is now readable only by its owner (mode 0600), even when it overwrites an existing file.
 - Hardened existing workflows: per-job least-privilege `permissions` on `run-tests.yml`/`e2e.yml` and `persist-credentials: false` on all `actions/checkout` steps, limiting the blast radius of a compromised action.
 - Documented `# nosec` annotations on the `kubeseal`/`kubectl` `subprocess` calls (fixed argv lists, no shell), keeping bandit fail-closed on any future subprocess usage.
