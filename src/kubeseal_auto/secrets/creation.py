@@ -4,7 +4,6 @@ This module provides functions for creating different types of
 Kubernetes secrets (generic, TLS, docker-registry).
 """
 
-import subprocess  # nosec B404 - subprocess wraps kubectl (the tool's purpose); calls pass argv lists, never shell=True
 from pathlib import Path
 
 import click
@@ -12,63 +11,11 @@ import click
 from kubeseal_auto import console
 from kubeseal_auto.debug import ic
 from kubeseal_auto.models import SecretParams
+from kubeseal_auto.secrets.command import run_to_file
 from kubeseal_auto.secrets.prompts import collect_secret_entries, prompt_docker_credentials
 
 # CLI flag constants for kubectl commands
 _DRY_RUN_CLIENT = "--dry-run=client"
-
-# Error message constants
-_ERR_KUBECTL_NOT_FOUND = "kubectl not found; please install kubectl and ensure it's on PATH"
-_ERR_OUTPUT_PATH = "Cannot write to output path '{path}': {reason}"
-_ERR_SECRET_CREATION = "Failed to create {secret_type} secret (exit code {code}){details}"  # nosec B105 - error-message template, not a credential (flagged only because the name contains "SECRET")
-
-
-def _run_kubectl_write_output(
-    cmd: list[str],
-    output_path: Path,
-    secret_type: str,
-    *,
-    input_data: bytes | None = None,
-) -> None:
-    """Run a kubectl command and write its stdout to a file.
-
-    Args:
-        cmd: The kubectl command to execute.
-        output_path: Path where the command output will be written.
-        secret_type: Type of secret being created (for error messages).
-        input_data: Optional bytes to pass to stdin.
-
-    Raises:
-        click.ClickException: If output path is invalid, kubectl is not found,
-            or the command fails.
-
-    """
-    try:
-        f = output_path.open("w", encoding="utf-8")
-    except OSError as err:
-        raise click.ClickException(
-            _ERR_OUTPUT_PATH.format(path=output_path, reason=err.strerror)
-        ) from err
-
-    with f:
-        try:
-            subprocess.run(  # nosec B603 - fixed kubectl argv list, no shell, no untrusted command input
-                cmd,
-                input=input_data,
-                stdout=f,
-                stderr=subprocess.PIPE,
-                check=True,
-            )
-        except FileNotFoundError as err:
-            raise click.ClickException(_ERR_KUBECTL_NOT_FOUND) from err
-        except subprocess.CalledProcessError as err:
-            stderr_msg = err.stderr.decode().strip() if err.stderr else ""
-            error_details = f" - {stderr_msg}" if stderr_msg else ""
-            raise click.ClickException(
-                _ERR_SECRET_CREATION.format(
-                    secret_type=secret_type, code=err.returncode, details=error_details
-                )
-            ) from err
 
 
 def create_generic_secret(secret_params: SecretParams, output_path: Path) -> None:
@@ -80,6 +27,9 @@ def create_generic_secret(secret_params: SecretParams, output_path: Path) -> Non
     Args:
         secret_params: SecretParams containing name and namespace.
         output_path: Path where the temporary secret YAML will be written.
+
+    Raises:
+        click.ClickException: If kubectl is not found or fails.
 
     """
     entries = collect_secret_entries()
@@ -103,7 +53,7 @@ def create_generic_secret(secret_params: SecretParams, output_path: Path) -> Non
 
     ic(cmd)
 
-    _run_kubectl_write_output(cmd, output_path, "generic")
+    run_to_file(cmd, output_path, "Failed to create generic secret")
 
 
 def create_tls_secret(secret_params: SecretParams, output_path: Path) -> None:
@@ -116,7 +66,8 @@ def create_tls_secret(secret_params: SecretParams, output_path: Path) -> None:
         output_path: Path where the temporary secret YAML will be written.
 
     Raises:
-        click.ClickException: If tls.key or tls.crt files do not exist.
+        click.ClickException: If tls.key or tls.crt files do not exist,
+            or kubectl is not found or fails.
 
     """
     key_file = Path("tls.key")
@@ -150,7 +101,7 @@ def create_tls_secret(secret_params: SecretParams, output_path: Path) -> None:
     ]
     ic(cmd)
 
-    _run_kubectl_write_output(cmd, output_path, "TLS")
+    run_to_file(cmd, output_path, "Failed to create TLS secret")
 
 
 def create_regcred_secret(secret_params: SecretParams, output_path: Path) -> None:
@@ -163,7 +114,7 @@ def create_regcred_secret(secret_params: SecretParams, output_path: Path) -> Non
         output_path: Path where the temporary secret YAML will be written.
 
     Raises:
-        click.ClickException: If kubectl command fails.
+        click.ClickException: If kubectl is not found or fails.
 
     """
     console.step("Generating temporary docker-registry secret yaml file")
@@ -186,4 +137,4 @@ def create_regcred_secret(secret_params: SecretParams, output_path: Path) -> Non
         "yaml",
     ]
 
-    _run_kubectl_write_output(cmd, output_path, "docker-registry")
+    run_to_file(cmd, output_path, "Failed to create docker-registry secret")

@@ -36,6 +36,8 @@ kubeseal-auto --fetch
 # Generate SealedSecret with local certificate
 kubeseal-auto --cert <kubectl-context>-kubeseal-cert.crt
 ```
+In the file name, characters of the context name that are not valid in a file name are replaced with `_`. For example, an EKS context `arn:aws:eks:us-east-1:123456789012:cluster/prod` gives `arn_aws_eks_us-east-1_123456789012_cluster_prod-kubeseal-cert.crt`.
+
 > [!IMPORTANT]
 > In the detached mode `kubeseal-auto` will not download the `kubeseal` binary and will look for it in the system $PATH.
 

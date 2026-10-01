@@ -1,5 +1,6 @@
 """Tests for kubeseal.py module."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
 
 import click
@@ -72,7 +73,6 @@ class TestKubesealSecretCreation:
         with (
             patch("questionary.select") as mock_select,
             patch("questionary.text") as mock_text,
-            patch("builtins.open", mock_open()),
         ):
             # Simulate: literal -> key1=value1, literal -> key2=value2, done
             mock_select.return_value.unsafe_ask.side_effect = ["literal", "literal", "done"]
@@ -99,7 +99,6 @@ class TestKubesealSecretCreation:
         with (
             patch("questionary.select") as mock_select,
             patch("questionary.path") as mock_path,
-            patch("builtins.open", mock_open()),
             patch("kubeseal_auto.secrets.prompts.Path.exists", return_value=True),
         ):
             # Simulate: file -> config.json, done
@@ -119,7 +118,6 @@ class TestKubesealSecretCreation:
         with (
             patch("questionary.select") as mock_select,
             patch("questionary.text") as mock_text,
-            patch("builtins.open", mock_open()),
         ):
             # Simulate: bulk -> multiline input, done
             mock_select.return_value.unsafe_ask.side_effect = ["bulk", "done"]
@@ -141,7 +139,6 @@ class TestKubesealSecretCreation:
             patch("questionary.select") as mock_select,
             patch("questionary.text") as mock_text,
             patch("questionary.path") as mock_path,
-            patch("builtins.open", mock_open()),
             patch("kubeseal_auto.secrets.prompts.Path.exists", return_value=True),
         ):
             # Simulate: literal, file, bulk, done
@@ -163,7 +160,6 @@ class TestKubesealSecretCreation:
         secret_params = SecretParams(name="test-tls-secret", namespace="default", secret_type=SecretType.TLS)
 
         with (
-            patch("builtins.open", mock_open()),
             patch("kubeseal_auto.secrets.creation.Path.exists", return_value=True),
         ):
             kubeseal.create_tls_secret(secret_params)
@@ -199,7 +195,6 @@ class TestKubesealSecretCreation:
         with (
             patch("questionary.text") as mock_questionary_text,
             patch("questionary.password") as mock_questionary_password,
-            patch("builtins.open", mock_open()),
         ):
             mock_questionary_text_instance = MagicMock()
             mock_questionary_text.return_value = mock_questionary_text_instance
@@ -256,37 +251,41 @@ class TestKubesealSecretCreation:
 class TestKubesealSealing:
     """Tests for secret sealing methods."""
 
-    def test_seal(self, kubeseal_mocks: dict[str, MagicMock], mock_subprocess: MagicMock) -> None:  # noqa: ARG002
+    def test_seal(
+        self,
+        kubeseal_mocks: dict[str, MagicMock],  # noqa: ARG002
+        mock_subprocess: MagicMock,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test sealing a secret."""
+        monkeypatch.chdir(tmp_path)
         kubeseal = Kubeseal(select_context=False)
         secret_params = SecretParams(name="test-secret", namespace="default", secret_type=SecretType.GENERIC)
 
-        with patch(
-            "builtins.open", mock_open(read_data="apiVersion: v1\nkind: Secret\nmetadata:\n  name: test-secret")
-        ):
-            kubeseal.seal(secret_params=secret_params)
+        kubeseal.seal(secret_params=secret_params)
 
-            mock_subprocess.assert_called_once()
-            cmd = mock_subprocess.call_args[0][0]
-            assert kubeseal.binary in cmd[0]
-            assert "--format=yaml" in cmd
-            assert f"--context={kubeseal.current_context_name}" in cmd
-            assert f"--controller-namespace={kubeseal.controller_namespace}" in cmd
-            assert f"--controller-name={kubeseal.controller_name}" in cmd
+        mock_subprocess.assert_called_once()
+        cmd = mock_subprocess.call_args[0][0]
+        assert kubeseal.binary in cmd[0]
+        assert "--format=yaml" in cmd
+        assert f"--context={kubeseal.current_context_name}" in cmd
+        assert f"--controller-namespace={kubeseal.controller_namespace}" in cmd
+        assert f"--controller-name={kubeseal.controller_name}" in cmd
 
-    def test_seal_detached_mode(self, mock_subprocess: MagicMock) -> None:
+    def test_seal_detached_mode(
+        self, mock_subprocess: MagicMock, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test sealing a secret in detached mode."""
+        monkeypatch.chdir(tmp_path)
         kubeseal = Kubeseal(select_context=False, certificate="test-cert.crt")
         secret_params = SecretParams(name="test-secret", namespace="default", secret_type=SecretType.GENERIC)
 
-        with patch(
-            "builtins.open", mock_open(read_data="apiVersion: v1\nkind: Secret\nmetadata:\n  name: test-secret")
-        ):
-            kubeseal.seal(secret_params=secret_params)
+        kubeseal.seal(secret_params=secret_params)
 
-            mock_subprocess.assert_called_once()
-            cmd = mock_subprocess.call_args[0][0]
-            assert "--cert=test-cert.crt" in cmd
+        mock_subprocess.assert_called_once()
+        cmd = mock_subprocess.call_args[0][0]
+        assert "--cert=test-cert.crt" in cmd
 
     def test_merge(self, kubeseal_mocks: dict[str, MagicMock], mock_subprocess: MagicMock, sample_secret_yaml: str) -> None:  # noqa: ARG002
         """Test merging secrets into an existing sealed secret."""
@@ -415,6 +414,23 @@ class TestKubesealCollectParameters:
 
             assert params.namespace == "default"
             assert params.secret_type == SecretType.GENERIC
+            assert params.name == "my-secret"
+
+    def test_collect_parameters_without_namespace_list(self, kubeseal_mocks: dict[str, MagicMock]) -> None:
+        """Test that a user who cannot list namespaces gets a plain text prompt instead of a crash."""
+        kubeseal = Kubeseal(select_context=False)
+        kubeseal_mocks["namespaces"].return_value = []
+
+        with (
+            patch("questionary.select") as mock_select,
+            patch("questionary.text") as mock_text,
+        ):
+            mock_text.return_value.unsafe_ask.side_effect = ["team-a", "my-secret"]
+            mock_select.return_value.unsafe_ask.return_value = "generic"
+
+            params = kubeseal.collect_parameters()
+
+            assert params.namespace == "team-a"
             assert params.name == "my-secret"
 
     def test_collect_parameters_detached_mode(self) -> None:

@@ -13,8 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pre-commit hooks for bandit and TruffleHog, so Python security issues and secrets are caught locally before a commit reaches CI.
 - `bandit` added to the dev dependency group; `zizmor`, `trivy`, and `trufflehog` added to the Nix devshell.
 
+### Fixed
+
+- `--fetch` and `--backup` no longer crash for kubeconfig contexts whose names contain `/` or `:`, such as EKS ARNs. Characters that are not valid in a file name are replaced with `_` in the output file name.
+- A missing `kubectl` or `kubeseal` binary, or an output file that cannot be written, now gives a clear error instead of a traceback for every command. Before, only secret creation handled this.
+- `--re-encrypt` now restores the original file on any failure, including a missing `kubeseal` binary, and leaves no `_backup` or `_new` files behind.
+- `--backup` now reads the controller key from the context chosen with `--select`. Before, it used kubectl's current-context, so it failed or read from the wrong cluster when the two differed.
+- Every kubeseal-auto error now prints one message and exits with status 1 instead of a traceback. This covers a missing SealedSecrets controller, an unsupported OS or CPU, and Kubernetes API errors such as 403 Forbidden.
+- Users who cannot list namespaces no longer crash on start. They see a warning and type the namespace by hand. `--fetch`, `--backup` and `--re-encrypt` no longer list namespaces at all.
+- A network error while downloading the kubeseal binary that matches the controller now falls back to `kubeseal` on PATH instead of crashing.
+
 ### Security
 
+- The `--backup` file holds the controller's private key and is now readable only by its owner (mode 0600), even when it overwrites an existing file.
 - Hardened existing workflows: per-job least-privilege `permissions` on `run-tests.yml`/`e2e.yml` and `persist-credentials: false` on all `actions/checkout` steps, limiting the blast radius of a compromised action.
 - Documented `# nosec` annotations on the `kubeseal`/`kubectl` `subprocess` calls (fixed argv lists, no shell), keeping bandit fail-closed on any future subprocess usage.
 
@@ -147,3 +158,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2022-03-06
 ### Added
 - Initial bash version
+
+[Unreleased]: https://github.com/shini4i/kubeseal-auto/compare/v0.7.1...HEAD

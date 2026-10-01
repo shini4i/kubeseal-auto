@@ -13,7 +13,7 @@ import click
 from kubeseal_auto import __version__, console
 from kubeseal_auto.core.kubeseal import Kubeseal
 from kubeseal_auto.debug import configure_debug, ic
-from kubeseal_auto.exceptions import ClusterConnectionError, SecretParsingError
+from kubeseal_auto.exceptions import KubesealError, SecretParsingError
 from kubeseal_auto.models import SecretParams, SecretType
 
 
@@ -104,6 +104,9 @@ def cli(
 ) -> None:
     """Process CLI arguments and execute the appropriate action.
 
+    Any kubeseal-auto error is printed as a single message and the process
+    exits with status 1.
+
     Args:
         debug: Enable debug output.
         select: Prompt for Kubernetes context selection.
@@ -140,8 +143,8 @@ def cli(
                 return
 
             create_new_secret(kubeseal=kubeseal)
-    except ClusterConnectionError as e:
-        console.error(f"Cluster connection failed: {e}")
+    except KubesealError as e:
+        console.error(str(e))
         sys.exit(1)
 
 

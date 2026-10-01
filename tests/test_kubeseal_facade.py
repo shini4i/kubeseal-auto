@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import click
 import pytest
+import requests
 
 from kubeseal_auto.core.kubeseal import Kubeseal
 from kubeseal_auto.exceptions import BinaryNotFoundError
@@ -150,3 +151,61 @@ class TestKubesealEmptyVersion:
             kubeseal = Kubeseal(select_context=False)
 
             assert kubeseal.binary == "/usr/bin/kubeseal"
+
+
+class TestKubesealNamespaces:
+    """Tests for lazy namespace listing."""
+
+    def test_init_does_not_list_namespaces(self, kubeseal_mocks: dict[str, MagicMock]) -> None:
+        """Test that fetch/backup/re-encrypt runs never need cluster-wide namespace access."""
+        Kubeseal(select_context=False)
+
+        kubeseal_mocks["namespaces"].assert_not_called()
+
+    def test_collect_parameters_lists_namespaces(self, kubeseal_mocks: dict[str, MagicMock]) -> None:
+        """Test that namespaces are listed when secret parameters are collected."""
+        kubeseal = Kubeseal(select_context=False)
+
+        with patch("kubeseal_auto.core.kubeseal.collect_secret_parameters") as mock_collect:
+            kubeseal.collect_parameters()
+
+        mock_collect.assert_called_once_with(
+            namespaces=["default", "kube-system", "monitoring"],
+            detached_mode=False,
+        )
+
+    def test_collect_parameters_detached_mode_skips_namespaces(self) -> None:
+        """Test that detached mode collects parameters without a cluster."""
+        kubeseal = Kubeseal(select_context=False, certificate="cert.crt")
+
+        with patch("kubeseal_auto.core.kubeseal.collect_secret_parameters") as mock_collect:
+            kubeseal.collect_parameters()
+
+        mock_collect.assert_called_once_with(namespaces=[], detached_mode=True)
+
+
+class TestKubesealDownloadFailure:
+    """Tests for falling back when the kubeseal download fails."""
+
+    @pytest.mark.parametrize(
+        "error",
+        [requests.ConnectionError("network unreachable"), requests.HTTPError("503 Service Unavailable")],
+        ids=["offline", "server-error"],
+    )
+    def test_download_error_falls_back_to_system_binary(
+        self,
+        mock_kube_contexts: MagicMock,  # noqa: ARG002
+        mock_kube_config: MagicMock,  # noqa: ARG002
+        mock_controller: MagicMock,  # noqa: ARG002
+        error: Exception,
+    ) -> None:
+        """Test that a failed download uses kubeseal from PATH instead of crashing."""
+        with (
+            patch("kubeseal_auto.core.host.Host.ensure_kubeseal_binary", side_effect=error),
+            patch("shutil.which", return_value="/usr/bin/kubeseal"),
+            patch("kubeseal_auto.core.kubeseal.console.warning") as mock_warning,
+        ):
+            kubeseal = Kubeseal(select_context=False)
+
+        assert kubeseal.binary == "/usr/bin/kubeseal"
+        assert "falling back to system kubeseal binary" in mock_warning.call_args_list[0][0][0]

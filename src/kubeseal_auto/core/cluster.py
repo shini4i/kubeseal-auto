@@ -9,6 +9,7 @@ from typing import Any
 import click
 import questionary
 from kubernetes import client, config
+from kubernetes.client.exceptions import ApiException
 from kubernetes.config.config_exception import ConfigException
 from urllib3.exceptions import MaxRetryError
 
@@ -88,11 +89,19 @@ class Cluster:
     def get_all_namespaces() -> list[str]:
         """Get all namespaces in the cluster.
 
+        Users without permission to list namespaces get a warning and an
+        empty list, so they can still type a namespace by hand.
+
         Returns:
-            List of namespace names.
+            List of namespace names, or an empty list if the API refuses the request.
 
         """
-        ns_list = [ns.metadata.name for ns in client.CoreV1Api().list_namespace().items]
+        try:
+            namespaces = client.CoreV1Api().list_namespace().items
+        except ApiException as e:
+            console.warning(f"Cannot list namespaces ({e.status} {e.reason}); type the namespace manually")
+            return []
+        ns_list = [ns.metadata.name for ns in namespaces]
         ic(ns_list)
 
         return ns_list
@@ -107,7 +116,7 @@ class Cluster:
             ControllerInfo with controller name, namespace, and version.
 
         Raises:
-            ClusterConnectionError: If the cluster is unreachable.
+            ClusterConnectionError: If the cluster is unreachable or the API refuses the request.
             ControllerNotFoundError: If no SealedSecrets controller is found.
 
         """
@@ -120,12 +129,13 @@ class Cluster:
                 ).items
             except MaxRetryError as e:
                 raise ClusterConnectionError(f"Failed to connect to the Kubernetes cluster: {e.reason}") from e
+            except ApiException as e:
+                raise ClusterConnectionError(f"Kubernetes API request failed ({e.status} {e.reason})") from e
 
             # Further filter out metrics services
             found_services = [svc for svc in found_services if "metrics" not in svc.metadata.name]
 
         if not found_services:
-            console.error("No controller found")
             raise ControllerNotFoundError("SealedSecrets controller not found in the cluster")
 
         service = found_services[0]
@@ -154,8 +164,15 @@ class Cluster:
         Returns:
             The name of the latest sealed-secrets TLS certificate secret.
 
+        Raises:
+            ClusterConnectionError: If the Kubernetes API refuses the request.
+            ControllerNotFoundError: If no sealed-secrets TLS certificate exists.
+
         """
-        res = client.CoreV1Api().list_namespaced_secret(self.controller.namespace)
+        try:
+            res = client.CoreV1Api().list_namespaced_secret(self.controller.namespace)
+        except ApiException as e:
+            raise ClusterConnectionError(f"Kubernetes API request failed ({e.status} {e.reason})") from e
         tls_secrets = [
             secret
             for secret in res.items

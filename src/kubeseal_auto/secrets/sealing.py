@@ -4,9 +4,7 @@ This module provides functions for sealing, merging, re-encrypting,
 and backing up sealed secrets using the kubeseal binary.
 """
 
-import contextlib
 import shutil
-import subprocess  # nosec B404 - subprocess wraps the kubeseal/kubectl binaries; calls pass argv lists, never shell=True
 from pathlib import Path
 
 import click
@@ -15,6 +13,7 @@ from kubeseal_auto import console
 from kubeseal_auto.debug import ic
 from kubeseal_auto.exceptions import SecretParsingError
 from kubeseal_auto.models import SecretParams
+from kubeseal_auto.secrets.command import run_command, run_to_file, safe_filename
 from kubeseal_auto.secrets.parsing import append_argo_annotation, parse_secret_file
 
 
@@ -47,34 +46,26 @@ def seal_secret(
 ) -> None:
     """Seal a secret using kubeseal.
 
-    Reads the temporary secret file and outputs a sealed secret YAML file.
+    Reads the temporary secret file and writes ``<name>.yaml`` in the
+    current directory.
 
     Args:
         secret_params: SecretParams containing name, namespace, and secret_type.
-        temp_file_path: Path to the temporary unseal secret file.
+        temp_file_path: Path to the temporary unsealed secret file.
         kubeseal_cmd: Base kubeseal command with appropriate flags.
 
     Raises:
-        click.ClickException: If kubeseal command fails.
+        click.ClickException: If the output file cannot be written or kubeseal fails.
 
     """
     console.step("Sealing secret")
     ic(kubeseal_cmd)
 
-    output_file = f"{secret_params.name}.yaml"
+    output_file = Path(f"{secret_params.name}.yaml")
 
-    try:
-        with console.spinner("Sealing secret with kubeseal..."):
-            with open(temp_file_path, encoding="utf-8") as stdin_f, open(output_file, "w", encoding="utf-8") as stdout_f:
-                subprocess.run(kubeseal_cmd, stdin=stdin_f, stdout=stdout_f, stderr=subprocess.PIPE, check=True)  # nosec B603 - fixed kubeseal argv list, no shell, no untrusted command input
-            append_argo_annotation(filename=output_file)
-    except subprocess.CalledProcessError as err:
-        # Clean up partial output file on failure
-        with contextlib.suppress(OSError):
-            Path(output_file).unlink(missing_ok=True)
-        stderr_msg = err.stderr.decode().strip() if err.stderr else ""
-        error_details = f": {stderr_msg}" if stderr_msg else ""
-        raise click.ClickException(f"Failed to seal secret with kubeseal (exit code {err.returncode}){error_details}") from err
+    with console.spinner("Sealing secret with kubeseal..."):
+        run_to_file(kubeseal_cmd, output_file, "Failed to seal secret with kubeseal", stdin_path=temp_file_path)
+        append_argo_annotation(filename=str(output_file))
 
     console.newline()
     console.summary_panel(
@@ -83,7 +74,7 @@ def seal_secret(
             "Name": secret_params.name,
             "Namespace": secret_params.namespace,
             "Type": secret_params.secret_type.value,
-            "Output": output_file,
+            "Output": str(output_file),
         },
     )
 
@@ -101,7 +92,7 @@ def merge_secret(
         kubeseal_cmd: Base kubeseal command with appropriate flags.
 
     Raises:
-        click.ClickException: If kubeseal command fails.
+        click.ClickException: If kubeseal is not found or fails.
 
     """
     console.action(f"Updating {console.highlight(secret_name)}")
@@ -109,13 +100,7 @@ def merge_secret(
     cmd = [*kubeseal_cmd, "--merge-into", secret_name]
     ic(cmd)
 
-    try:
-        with open(temp_file_path, encoding="utf-8") as stdin_f:
-            subprocess.run(cmd, stdin=stdin_f, stderr=subprocess.PIPE, check=True)  # nosec B603 - fixed kubeseal argv list, no shell, no untrusted command input
-    except subprocess.CalledProcessError as err:
-        stderr_msg = err.stderr.decode().strip() if err.stderr else ""
-        error_details = f": {stderr_msg}" if stderr_msg else ""
-        raise click.ClickException(f"Failed to merge secret with kubeseal (exit code {err.returncode}){error_details}") from err
+    run_command(cmd, "Failed to merge secret with kubeseal", stdin_path=temp_file_path)
 
     append_argo_annotation(filename=secret_name)
     console.success("Done")
@@ -124,9 +109,14 @@ def merge_secret(
 def reencrypt_secrets(src: str, kubeseal_cmd: list[str]) -> None:
     """Re-encrypt existing SealedSecret files using the newest encryption certificate.
 
+    Each file is restored to its original content if its re-encryption fails.
+
     Args:
         src: Path to the directory containing SealedSecret files.
         kubeseal_cmd: Base kubeseal command with appropriate flags.
+
+    Raises:
+        click.ClickException: If kubeseal is not found or fails for any file.
 
     """
     secrets = _find_sealed_secrets(src)
@@ -148,20 +138,14 @@ def reencrypt_secrets(src: str, kubeseal_cmd: list[str]) -> None:
             ic(cmd)
 
             try:
-                with secret.open(encoding="utf-8") as stdin_f, output_tmp.open("w", encoding="utf-8") as stdout_f:
-                    subprocess.run(cmd, stdin=stdin_f, stdout=stdout_f, stderr=subprocess.PIPE, check=True)  # nosec B603 - fixed kubeseal argv list, no shell, no untrusted command input
-                # Atomic replace on success
-                output_tmp.replace(secret)
-                backup_path.unlink()
-            except subprocess.CalledProcessError as err:
-                # Restore from backup on failure
-                if backup_path.exists():
-                    backup_path.replace(secret)
-                with contextlib.suppress(OSError):
-                    output_tmp.unlink(missing_ok=True)
-                stderr_msg = err.stderr.decode().strip() if err.stderr else ""
-                error_details = f": {stderr_msg}" if stderr_msg else ""
-                raise click.ClickException(f"Failed to re-encrypt {secret} (exit code {err.returncode}){error_details}") from err
+                run_to_file(cmd, output_tmp, f"Failed to re-encrypt {secret}", stdin_path=secret)
+            except click.ClickException:
+                backup_path.replace(secret)
+                raise
+
+            # Atomic replace on success
+            output_tmp.replace(secret)
+            backup_path.unlink()
 
             append_argo_annotation(str(secret))
             progress.update(task, advance=1)
@@ -176,7 +160,9 @@ def fetch_certificate(
     """Download the kubeseal encryption certificate from the cluster.
 
     This certificate can be used in the future to encrypt secrets
-    without direct access to the cluster (detached mode).
+    without direct access to the cluster (detached mode). It is saved as
+    ``<context>-kubeseal-cert.crt``, with characters that are invalid in a
+    filename replaced by ``_``.
 
     Args:
         binary: Path to the kubeseal binary.
@@ -185,7 +171,7 @@ def fetch_certificate(
         context_name: Kubernetes context name.
 
     Raises:
-        click.ClickException: If kubeseal command fails.
+        click.ClickException: If the output file cannot be written or kubeseal fails.
 
     """
     console.action("Downloading certificate for kubeseal...")
@@ -200,19 +186,10 @@ def fetch_certificate(
     ]
     ic(cmd)
 
-    output_file = f"{context_name}-kubeseal-cert.crt"
-    try:
-        with open(output_file, "w", encoding="utf-8") as f:
-            subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, check=True)  # nosec B603 - fixed kubeseal/kubectl argv list, no shell, no untrusted command input
-    except subprocess.CalledProcessError as err:
-        # Clean up partial output file on failure
-        with contextlib.suppress(OSError):
-            Path(output_file).unlink(missing_ok=True)
-        stderr_msg = err.stderr.decode().strip() if err.stderr else ""
-        error_details = f": {stderr_msg}" if stderr_msg else ""
-        raise click.ClickException(f"Failed to fetch certificate from kubeseal (exit code {err.returncode}){error_details}") from err
+    output_file = Path(f"{safe_filename(context_name)}-kubeseal-cert.crt")
+    run_to_file(cmd, output_file, "Failed to fetch certificate from kubeseal")
 
-    console.success(f"Saved to {console.highlight(output_file)}")
+    console.success(f"Saved to {console.highlight(str(output_file))}")
 
 
 def backup_controller_secret(
@@ -222,17 +199,23 @@ def backup_controller_secret(
 ) -> None:
     """Create a backup of the SealedSecret controller's encryption secret.
 
+    The backup is saved as ``<context>-secret-backup.yaml``, with characters
+    that are invalid in a filename replaced by ``_``. The file holds the
+    controller's private key, so it is readable only by its owner (mode 0600).
+
     Args:
         controller_namespace: Namespace of the SealedSecrets controller.
         secret_name: Name of the secret to backup.
-        context_name: Kubernetes context name (used for output filename).
+        context_name: Kubernetes context to read the secret from; also used
+            in the output filename.
 
     Raises:
-        click.ClickException: If kubectl command fails.
+        click.ClickException: If the output file cannot be written or kubectl fails.
 
     """
     cmd: list[str] = [
         "kubectl",
+        f"--context={context_name}",
         "get",
         "secret",
         "-n",
@@ -243,16 +226,7 @@ def backup_controller_secret(
     ]
     ic(cmd)
 
-    output_file = f"{context_name}-secret-backup.yaml"
-    try:
-        with open(output_file, "w", encoding="utf-8") as f:
-            subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, check=True)  # nosec B603 - fixed kubeseal/kubectl argv list, no shell, no untrusted command input
-    except subprocess.CalledProcessError as err:
-        # Clean up partial output file on failure
-        with contextlib.suppress(OSError):
-            Path(output_file).unlink(missing_ok=True)
-        stderr_msg = err.stderr.decode().strip() if err.stderr else ""
-        error_details = f": {stderr_msg}" if stderr_msg else ""
-        raise click.ClickException(f"Failed to backup secret (exit code {err.returncode}){error_details}") from err
+    output_file = Path(f"{safe_filename(context_name)}-secret-backup.yaml")
+    run_to_file(cmd, output_file, "Failed to backup secret", private=True)
 
-    console.success(f"Saved to {console.highlight(output_file)}")
+    console.success(f"Saved to {console.highlight(str(output_file))}")
